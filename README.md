@@ -1,10 +1,7 @@
 # backdown
 
-A new flutter plugin project.
+A flutter plugin for downloading files in the background on iOS and Android.
 
 ## Getting Started
 
-For help getting started with Flutter, view our online
-[documentation](https://flutter.io/).
-
-For help on editing plugin code, view the [documentation](https://flutter.io/platform-plugins/#edit-code).
+See example/lib/main.dart && lib/backdown.dart
