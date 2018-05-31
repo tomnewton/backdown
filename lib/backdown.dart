@@ -76,9 +76,9 @@ class Backdown {
         }
         break;
       case PROGRESS_EVENT:
-        int progress = call.arguments(KEY_PROGRESS);
-        int total = call.arguments(KEY_TOTAL);
         int downloadId = call.arguments[KEY_DOWNLOAD_ID];
+        int progress = call.arguments[KEY_PROGRESS];
+        int total = call.arguments[KEY_TOTAL];
         print("ProgressEvent: $progress / $total for DownloadId: $downloadId");
         break;
       default:
