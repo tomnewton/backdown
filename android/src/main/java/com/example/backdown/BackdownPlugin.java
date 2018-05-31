@@ -198,6 +198,8 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
           String text = "Processing...";
 
           // Set the notification
+          // this will disappear automatically after 5s
+          // but we do clear it in the positive path.
           Notification note = buildIndeterminateNotification(context, title, text);
           notificationManager.notify((int)id, note);
 
