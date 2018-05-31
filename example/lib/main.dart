@@ -15,7 +15,7 @@ class _MyAppState extends State<MyApp> {
   @override
   initState() {
     super.initState();
-    _backdown = new Backdown();
+    _backdown = new Backdown(Colors.green);
     initPlatformState();
   }
 
