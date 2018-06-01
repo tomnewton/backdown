@@ -1,4 +1,5 @@
 #import "BackdownPlugin.h"
+#import <CommonCrypto/CommonDigest.h>
 
 #define DOWNLOAD_URL @"DOWNLOAD_URL"
 
@@ -50,7 +51,10 @@
       // no op on iOS.
       // this is used to set colors/theme for Android notifications.
   } else if ([@"enqueueDownload" isEqualToString:call.method]) {
-      [self enqueueDownload:call.arguments[DOWNLOAD_URL] isDiscretionary:NO doesSendLaunchEvents:YES];
+      NSString* url = call.arguments[DOWNLOAD_URL];
+      NSString* md5 = [self MD5String:url];
+      [self enqueueDownload:url isDiscretionary:NO doesSendLaunchEvents:YES];
+      result(md5);
   } else {
       result(FlutterMethodNotImplemented);
   }
@@ -187,6 +191,20 @@ totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
     }
     
     return appDocsDirectory;
+}
+
+- (NSString *)MD5String:(NSString*)input {
+    const char *cStr = [input UTF8String];
+    unsigned char result[CC_MD5_DIGEST_LENGTH];
+    CC_MD5( cStr, (CC_LONG)strlen(cStr), result );
+    
+    return [NSString stringWithFormat:
+            @"%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+            result[0], result[1], result[2], result[3],
+            result[4], result[5], result[6], result[7],
+            result[8], result[9], result[10], result[11],
+            result[12], result[13], result[14], result[15]
+            ];
 }
 
     

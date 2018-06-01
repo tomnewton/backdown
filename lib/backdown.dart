@@ -103,15 +103,17 @@ class Backdown {
     BackdownRequest request = new BackdownRequest(url, title, description,
         wifiOnly: true, showNotification: true);
 
-    int id =
+    String id =
         await _channel.invokeMethod(METHOD_ENQUEUE_DOWNLOAD, request.toMap());
+
+    print(id);
 
     final String url2 =
         "https://rss.art19.com/episodes/eae26461-a482-4d93-a689-914e42f736ec.mp3";
     final String title2 = "Morning Joe";
     final String desc2 = "Downloading..";
     BackdownRequest req2 = new BackdownRequest(url2, title2, desc2);
-    int id2 =
+    String id2 =
         await _channel.invokeMethod(METHOD_ENQUEUE_DOWNLOAD, req2.toMap());
 
     print(id);
