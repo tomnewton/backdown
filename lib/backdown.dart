@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/services.dart';
+import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 
 class Backdown {
@@ -64,20 +65,23 @@ class Backdown {
           print(filePath);
 
           Directory p = await getApplicationDocumentsDirectory();
+          File file;
           if (filePath.startsWith("file://")) {
-            filePath = filePath.substring(7);
+            //iOS returns these...
+            file = new File.fromUri(Uri.parse(filePath));
+          } else {
+            file = new File(filePath);
           }
-          File complete = new File(filePath);
-          //bool exists = complete.existsSync();
-          //assert(exists);
-          //print("file exists? " + exists.toString());
+          bool exists = file.existsSync();
+          assert(exists);
+          print("file exists? " + exists.toString());
 
-
-          String newName = "${p.path}/example/xyz.mp3";
-          File f = new File(newName);
+          String filename = basename(file.path);
+          String newPath = "${p.path}/example/$filename";
+          File f = new File(newPath);
           f.createSync(recursive: true);
-          complete.renameSync(newName);
-          print("Moved to: $newName");
+          file.renameSync(newPath);
+          print("Moved to: $newPath");
         }
         break;
       case PROGRESS_EVENT:

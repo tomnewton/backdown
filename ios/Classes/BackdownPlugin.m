@@ -177,24 +177,16 @@ totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
     
 - (NSURL*)applicationDataDirectory {
     NSFileManager* sharedFM = [NSFileManager defaultManager];
-    NSArray* possibleURLs = [sharedFM URLsForDirectory:NSApplicationSupportDirectory
+    NSArray* possibleURLs = [sharedFM URLsForDirectory:NSDocumentDirectory
                                              inDomains:NSUserDomainMask];
-    NSURL* appSupportDir = nil;
-    NSURL* appDirectory = nil;
+    NSURL* appDocsDirectory = nil;
     
     if ([possibleURLs count] >= 1) {
         // Use the first directory (if multiple are returned)
-        appSupportDir = [possibleURLs objectAtIndex:0];
+        appDocsDirectory = [possibleURLs objectAtIndex:0];
     }
     
-    // If a valid app support directory exists, add the
-    // app's bundle ID to it to specify the final directory.
-    if (appSupportDir) {
-        NSString* appBundleID = [[NSBundle mainBundle] bundleIdentifier];
-        appDirectory = [appSupportDir URLByAppendingPathComponent:appBundleID];
-    }
-    
-    return appDirectory;
+    return appDocsDirectory;
 }
 
     
