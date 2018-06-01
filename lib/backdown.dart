@@ -63,7 +63,7 @@ class Backdown {
           print(downloadId);
           print(filePath);
 
-          Directory p = await getApplicationDocumentsDirectory();
+          /*Directory p = await getApplicationDocumentsDirectory();
           if (filePath.startsWith("file://")) {
             filePath = filePath.substring(7);
           }
@@ -77,7 +77,7 @@ class Backdown {
           File f = new File(newName);
           f.createSync(recursive: true);
           complete.renameSync(newName);
-          print("Moved to: $newName");
+          print("Moved to: $newName");*/
         }
         break;
       case PROGRESS_EVENT:
