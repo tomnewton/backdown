@@ -1,4 +1,4 @@
 #import <Flutter/Flutter.h>
 
-@interface BackdownPlugin : NSObject<FlutterPlugin>
+@interface BackdownPlugin : NSObject<FlutterPlugin, NSURLSessionDelegate, NSURLSessionDownloadDelegate>
 @end
