@@ -27,6 +27,8 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 
 import io.flutter.plugin.common.MethodChannel;
@@ -46,8 +48,13 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
   private DownloadManager mDM;
   private Handler mHandler;
   private boolean isHandlerRunning;
+  private MessageDigest mMsgDigest;
 
   private int mNotificationColor = 0xFF000000;
+
+  // Valid methods on the channel.
+  private static final String METHOD_ENQUEUE_DOWNLOAD = "enqueueDownload";
+  private static final String METHOD_SET_DEFAULTS = "setDefaults";
 
   private static final String CHANNEL_ID = "backdownPluginChannel";
   // event name keys
@@ -69,55 +76,6 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
   private static final String TOTAL = "TOTAL";
   private static final String PROGRESS = "PROGRESS";
 
-  @Override
-  public void onMethodCall(MethodCall call, Result result) {
-    if (call.method.equals("enqueueDownload")) {
-
-      Uri url = Uri.parse(call.argument(DOWNLOAD_URL).toString());
-
-      boolean wifiOnly = call.argument(WIFI_ONLY);
-      boolean requiresCharging = call.argument(REQUIRES_CHARGING);
-      boolean requiresDeviceIdle = call.argument(REQUIRES_DEVICE_IDLE);
-
-      String title = call.argument(TITLE);
-      String description = call.argument(DESCRIPTION);
-
-      Request request = new Request(url);
-      request.setTitle(title);
-      request.setDescription(description);
-      request.setVisibleInDownloadsUi(false);
-      request.setNotificationVisibility(Request.VISIBILITY_HIDDEN);
-
-      if (wifiOnly) {
-        request.setAllowedNetworkTypes(Request.NETWORK_WIFI);
-      } else {
-        request.setAllowedNetworkTypes(Request.NETWORK_MOBILE|Request.NETWORK_WIFI);
-      }
-
-      if (Build.VERSION.SDK_INT >= 24 && requiresCharging) {
-        request.setRequiresCharging(true);
-      }
-
-      if (Build.VERSION.SDK_INT >= 24 && requiresDeviceIdle) {
-        request.setRequiresDeviceIdle(true);
-      }
-
-      long id = mDM.enqueue(request);
-      startProgressChecking();
-
-      // return the id.
-      result.success(id);
-
-    } else if (call.method.equals("setDefaults")) {
-      // currently we only have one
-      // default ot be set - the notification color.
-      long color = call.argument("color");
-      mNotificationColor = (int)color;
-    } else {
-      result.notImplemented();
-    }
-  }
-
   /**
    * Plugin registration.
    */
@@ -131,6 +89,11 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
     mChannel = channel;
     mDM = ( DownloadManager )this.getActiveContext().getSystemService(Context.DOWNLOAD_SERVICE);
     mHandler = new Handler();
+    try {
+      mMsgDigest = MessageDigest.getInstance("MD5");
+    } catch (NoSuchAlgorithmException e) {
+      Log.e(TAG, e.getMessage());
+    }
 
     createNotificationChannel();
 
@@ -144,6 +107,70 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
     if ( countActiveDownloads() > 0 ) {
       startProgressChecking();
     }
+  }
+
+  @Override
+  public void onMethodCall(MethodCall call, Result result) {
+    switch (call.method) {
+      case METHOD_ENQUEUE_DOWNLOAD:
+        Uri uri = Uri.parse(call.argument(DOWNLOAD_URL).toString());
+        boolean wifiOnly = call.argument(WIFI_ONLY);
+        boolean requiresCharging = call.argument(REQUIRES_CHARGING);
+        boolean requiresDeviceIdle = call.argument(REQUIRES_DEVICE_IDLE);
+        String title = call.argument(TITLE);
+        String description = call.argument(DESCRIPTION);
+        enqueueDownload(uri, result, title, description, wifiOnly, requiresCharging, requiresDeviceIdle);
+        break;
+      case METHOD_SET_DEFAULTS:
+        long color = call.argument("color");
+        mNotificationColor = (int)color;
+        break;
+      default:
+        result.notImplemented();
+    }
+  }
+
+  /**
+   * Enqueues a download with the DownloadManager.
+   * @param url - url to download
+   * @param result - MethodChannel.Result - should send back an ID for this Download.
+   * @param title - Title to display on a notification during download.
+   * @param description - Description to display on notification.
+   * @param wifiOnly - Whether this download should wait for Wifi only.
+   * @param requiresCharging - Whether this download should wait until the device is plugged in.
+   * @param requiresDeviceIdle  -  Whether this download should wait until the device is idle. (not actively being used)
+   */
+  private void enqueueDownload(Uri url, Result result, String title, String description, boolean wifiOnly, boolean requiresCharging, boolean requiresDeviceIdle) {
+    Request request = new Request(url);
+    request.setTitle(title);
+    request.setDescription(description);
+    request.setVisibleInDownloadsUi(false);
+    request.setNotificationVisibility(Request.VISIBILITY_HIDDEN);
+
+    if (wifiOnly) {
+      request.setAllowedNetworkTypes(Request.NETWORK_WIFI);
+    } else {
+      request.setAllowedNetworkTypes(Request.NETWORK_MOBILE|Request.NETWORK_WIFI);
+    }
+
+    if (Build.VERSION.SDK_INT >= 24 && requiresCharging) {
+      request.setRequiresCharging(true);
+    }
+
+    if (Build.VERSION.SDK_INT >= 24 && requiresDeviceIdle) {
+      request.setRequiresDeviceIdle(true);
+    }
+
+    mDM.enqueue(request);
+
+    startProgressChecking();
+
+    // return the id.
+    // we aren't returning the long id, instead
+    // opting for a hash of the url
+    // to keep the iOS and Android implementations consistent.
+    String hash = getMD5(url.toString());
+    result.success(hash);
   }
 
   private Context getActiveContext(){
@@ -183,10 +210,11 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
         // We will return the id for consistency.
         // Clients can use this id to keep track of the download
         // jobs requested.
-        args.put(DOWNLOAD_ID, id);
+        String originalUrl = c.getString(c.getColumnIndex(DownloadManager.COLUMN_URI));
+        args.put(DOWNLOAD_ID, getMD5(originalUrl));
 
-        int columnIndex = c.getColumnIndex(DownloadManager.COLUMN_STATUS);
-        int status = c.getInt(columnIndex);
+        // get the downloads status
+        int status = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_STATUS));
 
         if ( DownloadManager.STATUS_SUCCESSFUL == status) {
           // Let the notification finish...
@@ -214,10 +242,9 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
           /// the apps files directory.
           String newPath = getActiveContext().getFilesDir() + File.separator + "backdown";
           File dstDir = new File(newPath); // just the dir.
-          Uri downloadUri = Uri.parse(c.getString(c.getColumnIndex(DownloadManager.COLUMN_URI)));
+          Uri downloadUri = Uri.parse(originalUrl);
           try {
             // find the filename from the originally downloaded url
-            // TODO: will this definitely work in all cases?
             String filename = downloadUri.getLastPathSegment();
 
             // Move the file to the new location.
@@ -249,6 +276,7 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
           // successfully downloaded file, and moved to the backdown folder in our apps data
           // directory.
           args.put(SUCCESS, true);
+
           // send
           mChannel.invokeMethod(COMPLETE_EVENT, args);
           // end
@@ -258,8 +286,7 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
           sendFailure(COMPLETE_EVENT, reason);
         }
       }
-
-
+      // clean up.
       c.close();
       stopProgressChecking();
       notificationManager.cancel((int)id);
@@ -277,22 +304,27 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
     Cursor c = mDM.query(query);
 
     if ( c.moveToFirst() ) {
-      int size = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
-      int progress = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
-      String title = c.getString(c.getColumnIndex(DownloadManager.COLUMN_TITLE));
-      long id = c.getLong(c.getColumnIndex(DownloadManager.COLUMN_ID));
-      String status = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_STATUS)) == DownloadManager.STATUS_PENDING ? "Queued.." : "Downloading..";
+      do {
+        int size = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+        int progress = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+        String title = c.getString(c.getColumnIndex(DownloadManager.COLUMN_TITLE));
+        long id = c.getLong(c.getColumnIndex(DownloadManager.COLUMN_ID));
+        String status = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_STATUS)) == DownloadManager.STATUS_PENDING ? "Queued.." : "Downloading..";
+        String originalUrl = c.getString(c.getColumnIndex(DownloadManager.COLUMN_URI));
 
-      Notification note = buildNotification(getActiveContext(), title, status, progress, size);
-      NotificationManagerCompat notificationManager = NotificationManagerCompat.from(getActiveContext());
-      notificationManager.notify(Math.round(id), note);
+        Notification note = buildNotification(getActiveContext(), title, status, progress, size);
+        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(getActiveContext());
+        notificationManager.notify(Math.round(id), note);
 
-      HashMap<String, Object> args = new HashMap<>();
-      args.put(PROGRESS, progress);
-      args.put(TOTAL, size);
-      args.put(DOWNLOAD_ID, id);
-      mChannel.invokeMethod(PROGRESS_EVENT, args);
+        HashMap<String, Object> args = new HashMap<>();
+        args.put(PROGRESS, progress);
+        args.put(TOTAL, size);
+        args.put(DOWNLOAD_ID, getMD5(originalUrl));
+        mChannel.invokeMethod(PROGRESS_EVENT, args);
+      } while (c.moveToNext());
     }
+
+    stopProgressChecking();
 
     c.close();
   }
@@ -449,6 +481,7 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
     }
   }
 
+  // PROGRESS CHECKING ...
   private void startProgressChecking() {
     if(!isHandlerRunning) {
       progressChecker.run();
@@ -481,4 +514,18 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
       }
     }
   };
+
+  /**
+   * Hash
+   */
+  private String getMD5(String str) {
+    mMsgDigest.reset();
+    mMsgDigest.update(str.getBytes());
+    byte[] digest = mMsgDigest.digest();
+    StringBuffer sb = new StringBuffer();
+    for (byte b : digest) {
+      sb.append(String.format("%02x", b & 0xff));
+    }
+    return sb.toString();
+  }
 }
