@@ -15,7 +15,6 @@
 
 @implementation BackdownPlugin {
     FlutterMethodChannel* methodChannel;
-    
 }
 
 +(NSString*)sessionKey{
@@ -26,14 +25,14 @@
   FlutterMethodChannel* channel = [FlutterMethodChannel
       methodChannelWithName:@"backdown"
             binaryMessenger:[registrar messenger]];
-    BackdownPlugin* instance = [[BackdownPlugin alloc] initWithChannel:channel];
+    BackdownPlugin* instance = [[BackdownPlugin alloc] initWithChannel:channel andRegistrar:registrar];
   [registrar addMethodCallDelegate:instance channel:channel];
 }
-    
-    
--(id)initWithChannel:(FlutterMethodChannel*)chan{
+
+-(id)initWithChannel:(FlutterMethodChannel*)chan andRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar{
     if ( self = [super init] ) {
         methodChannel = chan;
+        [registrar addApplicationDelegate:self];
         return self;
     }
     return nil;
@@ -118,6 +117,20 @@
 didFinishDownloadingToURL:(nonnull NSURL *)location {
     /// we have to move the file from the temp location before
     /// returning from this method
+    if ( self.backgroundCompletionHandler != nil ) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.backgroundCompletionHandler();
+        });
+    }
+    
+    NSInteger status = [(NSHTTPURLResponse*)downloadTask.response statusCode];
+    if (status < 200 || 299 < status ){
+        NSString* errMsg = [NSString stringWithFormat:@"HTTP Status was: %ld", (long)status];
+        [methodChannel invokeMethod:COMPLETE_EVENT arguments:@{ KEY_SUCCESS: @NO, KEY_ERROR_MESSAGE:errMsg}];
+        return;
+    }
+    
+    
     NSError* error;
     NSFileManager* fm = [NSFileManager defaultManager];
     NSURL *to = [self applicationDataDirectory];
@@ -134,7 +147,6 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
     // add the filename.
     to = [to URLByAppendingPathComponent:downloadTask.originalRequest.URL.lastPathComponent];
 
-    
     NSLog(@"Path to new file: %@", to.absoluteString);
     
     BOOL moved = [fm moveItemAtURL:location toURL:to error:&error]; // [fm moveItemAtPath:[location absoluteString] toPath:[to absoluteString] error:&error]; //
@@ -163,6 +175,7 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
       didWriteData:(int64_t)bytesWritten
  totalBytesWritten:(int64_t)totalBytesWritten
 totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
+    
     /// progress
     NSDictionary *args = @{
        KEY_DOWNLOAD_ID: @0,
@@ -176,7 +189,15 @@ totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
     // did resume
     NSLog(@"Download did resume for url: %@", downloadTask.originalRequest.URL.absoluteString);
 }
-    
+
+#pragma mark - AppDelegate methods
+- (BOOL)application:(UIApplication*)application
+handleEventsForBackgroundURLSession:(nonnull NSString*)identifier
+  completionHandler:(nonnull void (^)())completionHandler {
+    self.backgroundCompletionHandler = completionHandler;
+    return YES;
+}
+
 #pragma mark - helpers
     
 - (NSURL*)applicationDataDirectory {
