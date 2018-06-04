@@ -106,7 +106,12 @@
 }
     
 -(void)URLSessionDidFinishEventsForBackgroundURLSession:(NSURLSession*)session {
-    // All done.
+    // If we stored a backgroundCompletionHandler - call it.
+    if ( self.backgroundCompletionHandler != nil ) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.backgroundCompletionHandler();
+        });
+    }
 }
 
     
@@ -117,12 +122,6 @@
 didFinishDownloadingToURL:(nonnull NSURL *)location {
     /// we have to move the file from the temp location before
     /// returning from this method
-    if ( self.backgroundCompletionHandler != nil ) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            self.backgroundCompletionHandler();
-        });
-    }
-    
     NSInteger status = [(NSHTTPURLResponse*)downloadTask.response statusCode];
     if (status < 200 || 299 < status ){
         NSString* errMsg = [NSString stringWithFormat:@"HTTP Status was: %ld", (long)status];
