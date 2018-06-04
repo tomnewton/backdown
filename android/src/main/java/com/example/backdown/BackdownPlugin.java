@@ -1,6 +1,5 @@
 package com.example.backdown;
 
-import android.Manifest;
 import android.app.DownloadManager;
 import android.app.DownloadManager.Query;
 import android.app.DownloadManager.Request;
@@ -35,12 +34,14 @@ import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
 import io.flutter.plugin.common.MethodCall;
+import io.flutter.plugin.common.PluginRegistry;
 import io.flutter.plugin.common.PluginRegistry.Registrar;
+import io.flutter.view.FlutterNativeView;
 
 /**
  * BackdownPlugin
  */
-public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandler {
+public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandler, PluginRegistry.ViewDestroyListener {
   private static final String TAG = "BackdownPlugin";
 
   private Registrar mRegistrar;
@@ -87,7 +88,10 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
   private BackdownPlugin(Registrar registrar, MethodChannel channel) {
     mRegistrar = registrar;
     mChannel = channel;
-    mDM = ( DownloadManager )this.getActiveContext().getSystemService(Context.DOWNLOAD_SERVICE);
+
+    Context ctx = getActiveContext();
+
+    mDM = ( DownloadManager )ctx.getSystemService(Context.DOWNLOAD_SERVICE);
     mHandler = new Handler();
     try {
       mMsgDigest = MessageDigest.getInstance("MD5");
@@ -101,7 +105,9 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
       DownloadManager.ACTION_DOWNLOAD_COMPLETE
     );
 
-    Context ctx = getActiveContext();
+    // so we don't leak the receiver that we add below
+    registrar.addViewDestroyListener(this);
+    // add the receiver.
     ctx.registerReceiver(this, filter);
 
     if ( countActiveDownloads() > 0 ) {
@@ -173,7 +179,7 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
     result.success(hash);
   }
 
-  private Context getActiveContext(){
+  private Context getActiveContext() {
     return (mRegistrar.activity() != null) ? mRegistrar.activity() : mRegistrar.context();
   }
 
@@ -527,5 +533,11 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
       sb.append(String.format("%02x", b & 0xff));
     }
     return sb.toString();
+  }
+
+  @Override
+  public boolean onViewDestroy(FlutterNativeView flutterNativeView) {
+    getActiveContext().unregisterReceiver(this);
+    return false;
   }
 }
