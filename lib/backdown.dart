@@ -13,6 +13,7 @@ class Backdown {
   // Methods supported.
   static const String METHOD_ENQUEUE_DOWNLOAD = "enqueueDownload";
   static const String METHOD_SET_DEFAULTS = "setDefaults";
+  static const String METHOD_CANCEL_DOWNLOAD = "cancelDownload";
 
   // Event Keys
   static const String COMPLETE_EVENT = "COMPLETE_EVENT";
@@ -118,6 +119,11 @@ class Backdown {
 
     print(id);
     print(id2);
+
+    var success = await _channel.invokeMethod(
+        "cancelDownload", <String, dynamic>{KEY_DOWNLOAD_ID: id2});
+
+    print("Removed $id2 ? ${success[KEY_SUCCESS]}");
   }
 }
 

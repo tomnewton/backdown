@@ -54,9 +54,27 @@
       NSString* md5 = [self MD5String:url];
       [self enqueueDownload:url isDiscretionary:NO doesSendLaunchEvents:YES];
       result(md5);
+  } else if ([@"cancelDownload" isEqualToString:call.method]) {
+      NSString* downloadId = call.arguments[KEY_DOWNLOAD_ID];
+      [self cancelDownload:downloadId andFlutterResult:result];
   } else {
       result(FlutterMethodNotImplemented);
   }
+}
+
+-(void)cancelDownload:(NSString*)downloadId andFlutterResult:(FlutterResult)result {
+    NSURLSession* session = [self getURLSessionDiscretionary:NO doesSendLaunchEvents:NO];
+    
+    [session getTasksWithCompletionHandler:^(NSArray<NSURLSessionDataTask *> * _Nonnull dataTasks, NSArray<NSURLSessionUploadTask *> * _Nonnull uploadTasks, NSArray<NSURLSessionDownloadTask *> * _Nonnull downloadTasks) {
+        for (NSURLSessionTask* task in downloadTasks) {
+            NSString* md5 = [self MD5String:[task.originalRequest.URL absoluteString]];
+            if ( [md5 isEqualToString:downloadId] ) {
+                [task cancel];
+                result(@{KEY_SUCCESS: @YES});
+            }
+        }
+        result(@{KEY_SUCCESS: @NO});
+    }];
 }
     
 -(void)enqueueDownload:(NSString*)urlStr
@@ -65,7 +83,7 @@
     
     NSURLSession* session = [self getURLSessionDiscretionary:isDiscretionary doesSendLaunchEvents:doesSendLaunchEvents];
     NSURL* url = [NSURL URLWithString:urlStr];
-    
+
     NSURLSessionDownloadTask* task = [session downloadTaskWithURL:url];
     
     if (@available(iOS 11, *)){
@@ -129,6 +147,12 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
         return;
     }
     
+    if( downloadTask.state == NSURLSessionTaskStateCanceling ) {
+        //apparently from stackoverflow you can sometimes have this delegate method called
+        // when you've asked to cancel a download. Since we've implemented that above,
+        // we'll just guard against that.
+        return;
+    }
     
     NSError* error;
     NSFileManager* fm = [NSFileManager defaultManager];
