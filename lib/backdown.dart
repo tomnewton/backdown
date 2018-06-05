@@ -101,8 +101,7 @@ class Backdown {
     final String title = "Episode 101 - BBC World at One";
     final String description = "Downloading...";
 
-    BackdownRequest request =
-        new BackdownRequest(url, title, description, wifiOnly: true);
+    BackdownRequest request = new BackdownRequest.asap(url, title, description);
 
     String id =
         await _channel.invokeMethod(METHOD_ENQUEUE_DOWNLOAD, request.toMap());
@@ -113,7 +112,7 @@ class Backdown {
         "https://rss.art19.com/episodes/eae26461-a482-4d93-a689-914e42f736ec.mp3";
     final String title2 = "Morning Joe";
     final String desc2 = "Downloading..";
-    BackdownRequest req2 = new BackdownRequest(url2, title2, desc2);
+    BackdownRequest req2 = new BackdownRequest.asap(url2, title2, desc2);
     String id2 =
         await _channel.invokeMethod(METHOD_ENQUEUE_DOWNLOAD, req2.toMap());
 
