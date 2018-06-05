@@ -56,6 +56,7 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
   // Valid methods on the channel.
   private static final String METHOD_ENQUEUE_DOWNLOAD = "enqueueDownload";
   private static final String METHOD_SET_DEFAULTS = "setDefaults";
+  private static final String METHOD_CANCEL_DOWNLOAD = "cancelDownload";
 
   private static final String CHANNEL_ID = "backdownPluginChannel";
   // event name keys
@@ -127,6 +128,10 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
         String description = call.argument(DESCRIPTION);
         enqueueDownload(uri, result, title, description, wifiOnly, requiresCharging, requiresDeviceIdle);
         break;
+      case METHOD_CANCEL_DOWNLOAD:
+        String downloadId = call.argument(DOWNLOAD_ID);
+        cancelDownload(downloadId, result);
+        break;
       case METHOD_SET_DEFAULTS:
         long color = call.argument("color");
         mNotificationColor = (int)color;
@@ -135,6 +140,36 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
         result.notImplemented();
     }
   }
+
+  private void cancelDownload(String downloadId, Result result) {
+    HashMap<String, Object> args = new HashMap<>();
+    Query query = new Query();
+    Cursor c = mDM.query(query);
+
+    if (c.moveToFirst())
+    {
+      do {
+        String url = c.getString(c.getColumnIndex(DownloadManager.COLUMN_URI));
+        if ( getMD5(url).equals(downloadId) ) {
+          long id = c.getLong(c.getColumnIndex(DownloadManager.COLUMN_ID));
+          int numDeleted = mDM.remove(id);
+          if ( numDeleted > 0 ) {
+            args.put(SUCCESS, true);
+          } else {
+            args.put(SUCCESS, false);
+          }
+          result.success(args);
+          return;
+        }
+      } while(c.moveToNext());
+    }
+
+    if( !args.containsKey(SUCCESS) ) {
+      args.put(SUCCESS, false);
+      result.success(args);
+    }
+  }
+
 
   /**
    * Enqueues a download with the DownloadManager.
