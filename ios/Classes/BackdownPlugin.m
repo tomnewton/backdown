@@ -2,6 +2,8 @@
 #import <CommonCrypto/CommonDigest.h>
 
 #define DOWNLOAD_URL @"DOWNLOAD_URL"
+#define WIFI_ONLY @"WIFI_ONLY"
+#define REQUIRES_CHARGING @"REQUIRED_CHARGING"
 
 #define COMPLETE_EVENT @"COMPLETE_EVENT"
 #define KEY_SUCCESS @"SUCCESS"
@@ -52,7 +54,17 @@
   } else if ([@"enqueueDownload" isEqualToString:call.method]) {
       NSString* url = call.arguments[DOWNLOAD_URL];
       NSString* md5 = [self MD5String:url];
-      [self enqueueDownload:url isDiscretionary:NO doesSendLaunchEvents:YES];
+      
+      // figure out if this is discretionary
+      BOOL wifiOnly = call.arguments[WIFI_ONLY];
+      BOOL requiresCharging = call.arguments[REQUIRES_CHARGING];
+      
+      if ( wifiOnly || requiresCharging ) {
+        [self enqueueDownload:url isDiscretionary:YES doesSendLaunchEvents:YES];
+      } else {
+        [self enqueueDownload:url isDiscretionary:NO doesSendLaunchEvents:YES];
+      }
+      
       result(md5);
   } else if ([@"cancelDownload" isEqualToString:call.method]) {
       NSString* downloadId = call.arguments[KEY_DOWNLOAD_ID];

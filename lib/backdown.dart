@@ -101,8 +101,8 @@ class Backdown {
     final String title = "Episode 101 - BBC World at One";
     final String description = "Downloading...";
 
-    BackdownRequest request = new BackdownRequest(url, title, description,
-        wifiOnly: true, showNotification: true);
+    BackdownRequest request =
+        new BackdownRequest(url, title, description, wifiOnly: true);
 
     String id =
         await _channel.invokeMethod(METHOD_ENQUEUE_DOWNLOAD, request.toMap());
@@ -132,15 +132,40 @@ class BackdownRequest {
   final String title;
   final String description;
   final bool wifiOnly;
-  final bool showNotification;
-  final bool requiresCharging;
-  final bool requiresDeviceIdle;
+  final bool androidRequiresCharging;
+  final bool androidRequiresDeviceIdle;
 
-  BackdownRequest(this.url, this.title, this.description,
-      {this.wifiOnly: false,
-      this.showNotification: false,
-      this.requiresCharging: false,
-      this.requiresDeviceIdle: false});
+  /// iOS and Android will download this file asap.
+  BackdownRequest.asap(this.url, this.title, this.description)
+      : this.wifiOnly = false,
+        this.androidRequiresCharging = false,
+        this.androidRequiresDeviceIdle = false;
+
+  /// iOS - Will force iOS to discretionary, allowing the system to schedule the download
+  /// at the optimum time.
+  /// Android - wifiOnly = true, requiresCharging = requiresDeviceIdle = false;
+  BackdownRequest.discretionaryWithWifi(this.url, this.title, this.description)
+      : this.wifiOnly = true,
+        this.androidRequiresCharging = false,
+        this.androidRequiresDeviceIdle = false;
+
+  /// iOS - Will force iOS to discretionary, allowing the system to schedule the download
+  /// at the optimum time.
+  /// Android - wifiOnly = true, requiresCharging = true, requiresDeviceIdle = false;
+  BackdownRequest.discretionaryWithWifiAndPower(
+      this.url, this.title, this.description)
+      : this.wifiOnly = true,
+        this.androidRequiresCharging = true,
+        this.androidRequiresDeviceIdle = false;
+
+  /// iOS - Will force iOS to discretionary, allowing the system to schedule the download
+  /// at the optimum time.
+  /// Android - wifiOnly = true, requiresCharging = true, requiresDeviceIdle = true;
+  BackdownRequest.discretionaryWithWifiPowerAndIdle(
+      this.url, this.title, this.description)
+      : this.wifiOnly = true,
+        this.androidRequiresCharging = true,
+        this.androidRequiresDeviceIdle = true;
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
@@ -148,8 +173,9 @@ class BackdownRequest {
       Backdown.KEY_TITLE: this.title,
       Backdown.KEY_DESCRIPTION: this.description,
       Backdown.KEY_WIFI_ONLY: this.wifiOnly ?? false,
-      Backdown.KEY_REQUIRES_CHARGING: this.requiresCharging ?? false,
-      Backdown.KEY_REQUIRES_DEVICE_IDLE: this.requiresDeviceIdle ?? false,
+      Backdown.KEY_REQUIRES_CHARGING: this.androidRequiresCharging ?? false,
+      Backdown.KEY_REQUIRES_DEVICE_IDLE:
+          this.androidRequiresDeviceIdle ?? false,
     };
   }
 }
