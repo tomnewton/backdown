@@ -51,9 +51,12 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
   private boolean isHandlerRunning;
   private MessageDigest mMsgDigest;
 
+  private HashMap<String, DownloadRequest> requests = new HashMap<>();
+
   private int mNotificationColor = 0xFF000000;
 
   // Valid methods on the channel.
+  private static final String METHOD_CREATE_DOWNLOAD = "createDownload";
   private static final String METHOD_ENQUEUE_DOWNLOAD = "enqueueDownload";
   private static final String METHOD_SET_DEFAULTS = "setDefaults";
   private static final String METHOD_CANCEL_DOWNLOAD = "cancelDownload";
@@ -119,18 +122,35 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
   @Override
   public void onMethodCall(MethodCall call, Result result) {
     switch (call.method) {
-      case METHOD_ENQUEUE_DOWNLOAD:
+      case METHOD_CREATE_DOWNLOAD:
         Uri uri = Uri.parse(call.argument(DOWNLOAD_URL).toString());
         boolean wifiOnly = call.argument(WIFI_ONLY);
         boolean requiresCharging = call.argument(REQUIRES_CHARGING);
         boolean requiresDeviceIdle = call.argument(REQUIRES_DEVICE_IDLE);
         String title = call.argument(TITLE);
         String description = call.argument(DESCRIPTION);
-        enqueueDownload(uri, result, title, description, wifiOnly, requiresCharging, requiresDeviceIdle);
+        DownloadRequest request = new DownloadRequest(uri, title, description, wifiOnly, requiresCharging, requiresDeviceIdle);
+        this.requests.put(request.getDownloadId(), request);
+        result.success(request.getDownloadId());
+        break;
+      case METHOD_ENQUEUE_DOWNLOAD:
+        String downloadId = call.argument(DOWNLOAD_ID);
+        DownloadRequest r = requests.get(downloadId);
+        HashMap<String, Object> args = new HashMap<>();
+        if ( r == null ) {
+          args.put(SUCCESS, false);
+          result.success(args);
+          return;
+        }
+        // enqueue it.
+        enqueueDownload(r.uri, r.title, r.description, r.wifiOnly, r.requiresCharging, r.requiresDeviceIdle);
+        requests.remove(downloadId);
+        args.put(SUCCESS, true);
+        result.success(args);
         break;
       case METHOD_CANCEL_DOWNLOAD:
-        String downloadId = call.argument(DOWNLOAD_ID);
-        cancelDownload(downloadId, result);
+        String dId = call.argument(DOWNLOAD_ID);
+        cancelDownload(dId, result);
         break;
       case METHOD_SET_DEFAULTS:
         long color = call.argument("color");
@@ -174,14 +194,13 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
   /**
    * Enqueues a download with the DownloadManager.
    * @param url - url to download
-   * @param result - MethodChannel.Result - should send back an ID for this Download.
    * @param title - Title to display on a notification during download.
    * @param description - Description to display on notification.
    * @param wifiOnly - Whether this download should wait for Wifi only.
    * @param requiresCharging - Whether this download should wait until the device is plugged in.
    * @param requiresDeviceIdle  -  Whether this download should wait until the device is idle. (not actively being used)
    */
-  private void enqueueDownload(Uri url, Result result, String title, String description, boolean wifiOnly, boolean requiresCharging, boolean requiresDeviceIdle) {
+  private void enqueueDownload(Uri url, String title, String description, boolean wifiOnly, boolean requiresCharging, boolean requiresDeviceIdle) {
     Request request = new Request(url);
     request.setTitle(title);
     request.setDescription(description);
@@ -205,13 +224,6 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
     mDM.enqueue(request);
 
     startProgressChecking();
-
-    // return the id.
-    // we aren't returning the long id, instead
-    // opting for a hash of the url
-    // to keep the iOS and Android implementations consistent.
-    String hash = getMD5(url.toString());
-    result.success(hash);
   }
 
   private Context getActiveContext() {
@@ -575,4 +587,32 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
     getActiveContext().unregisterReceiver(this);
     return false;
   }
+
+  private class DownloadRequest {
+    private String _downloadId;
+    Uri uri;
+    String title;
+    String description;
+    boolean wifiOnly;
+    boolean requiresCharging;
+    boolean requiresDeviceIdle;
+
+    DownloadRequest(Uri uri, String title, String description, boolean wifiOnly, boolean requiresCharging, boolean requiresDeviceIdle) {
+      this.uri = uri;
+      this.title = title;
+      this.description = description;
+      this.wifiOnly = wifiOnly;
+      this.requiresCharging = requiresCharging;
+      this.requiresDeviceIdle = requiresDeviceIdle;
+    }
+
+    public String getDownloadId(){
+      if ( _downloadId == null ) {
+        _downloadId = getMD5(this.uri.toString());
+      }
+      return _downloadId;
+    }
+  }
 }
+
+

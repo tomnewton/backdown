@@ -90,12 +90,14 @@
 -(void)enqueueDownload:(NSString*)urlStr
        isDiscretionary:(bool)isDiscretionary
   doesSendLaunchEvents:(bool)doesSendLaunchEvents {
+    NSLog(@"Enqueueing %@", urlStr);
     
     NSURLSession* session = [self getURLSessionDiscretionary:isDiscretionary doesSendLaunchEvents:doesSendLaunchEvents];
     NSURL* url = [NSURL URLWithString:urlStr];
-
+    
     NSURLSessionDownloadTask* task = [session downloadTaskWithURL:url];
     
+    NSLog(@"creating task");
     if (@available(iOS 11, *)){
         //iOS 11 on we can let the system know how much data to expect.
         
@@ -119,6 +121,7 @@
                 
                 [task setCountOfBytesClientExpectsToReceive:[size longLongValue]];
                 /// kick it off.
+                NSLog(@"kicking off job");
                 [task resume];
             }
         }] resume];
@@ -148,6 +151,7 @@
 - (void)URLSession:(nonnull NSURLSession *)session
       downloadTask:(nonnull NSURLSessionDownloadTask *)downloadTask
 didFinishDownloadingToURL:(nonnull NSURL *)location {
+    NSLog(@"Complete");
     /// we have to move the file from the temp location before
     /// returning from this method
     NSInteger status = [(NSHTTPURLResponse*)downloadTask.response statusCode];
@@ -202,13 +206,17 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
     
     [self.methodChannel invokeMethod:COMPLETE_EVENT arguments:args];
 }
+
+-(void)URLSession:(NSURLSession*)session task:(nonnull NSURLSessionTask *)task didCompleteWithError:(nullable NSError *)error {
+    NSLog(@"ERROR: %@", error.debugDescription);
+}
     
 - (void)URLSession:(NSURLSession*)session
       downloadTask:(nonnull NSURLSessionDownloadTask*)downloadTask
       didWriteData:(int64_t)bytesWritten
  totalBytesWritten:(int64_t)totalBytesWritten
 totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
-    
+    NSLog(@"Progress for file");
     /// progress
     NSDictionary *args = @{
        KEY_DOWNLOAD_ID: @0,
@@ -222,6 +230,7 @@ totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
     // did resume
     NSLog(@"Download did resume for url: %@", downloadTask.originalRequest.URL.absoluteString);
 }
+
 
 #pragma mark - AppDelegate methods
 - (BOOL)application:(UIApplication*)application

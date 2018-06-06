@@ -6,9 +6,11 @@ import 'package:flutter/services.dart';
 class Backdown {
   static Backdown _singleton;
   static const MethodChannel _channel = const MethodChannel("backdown");
+
   static final StreamController<BackdownEvent> _sc = new StreamController<BackdownEvent>();
 
   // Methods supported.
+  static const String METHOD_CREATE_DOWNLOAD = "createDownload";
   static const String METHOD_ENQUEUE_DOWNLOAD = "enqueueDownload";
   static const String METHOD_SET_DEFAULTS = "setDefaults";
   static const String METHOD_CANCEL_DOWNLOAD = "cancelDownload";
@@ -62,59 +64,38 @@ class Backdown {
     print("Heard handler call...");
     switch (call.method) {
       case COMPLETE_EVENT:
-        DownloadCompleteEvent event = new DownloadCompleteEvent.from(call.arguments);
+        DownloadCompleteEvent event = new DownloadCompleteEvent.from((call.arguments as Map).cast<String, dynamic>());
         _sc.add(event);
         break;
-      /*
-        bool success = call.arguments[KEY_SUCCESS];
-        int downloadId = call.arguments[KEY_DOWNLOAD_ID];
-        String filePath = call.arguments[KEY_FILE_PATH];
-        if (success == true) {
-          print("Success");
-          print(downloadId);
-          print(filePath);
 
-          Directory p = await getApplicationDocumentsDirectory();
-          File file;
-          if (filePath.startsWith("file://")) {
-            //iOS returns these...
-            file = new File.fromUri(Uri.parse(filePath));
-          } else {
-            file = new File(filePath);
-          }
-          bool exists = file.existsSync();
-          assert(exists);
-          print("file exists? " + exists.toString());
-
-          String filename = basename(file.path);
-          String newPath = "${p.path}/example/$filename";
-          File f = new File(newPath);
-          f.createSync(recursive: true);
-          file.renameSync(newPath);
-          print("Moved to: $newPath");
-          break;
-        }*/
       case PROGRESS_EVENT:
-        DownloadProgressEvent event = new DownloadProgressEvent.from(call.arguments);
+        DownloadProgressEvent event = new DownloadProgressEvent.from((call.arguments as Map).cast<String, dynamic>());
         _sc.add(event);
         break;
-      /*int downloadId = call.arguments[KEY_DOWNLOAD_ID];
-        int progress = call.arguments[KEY_PROGRESS];
-        int total = call.arguments[KEY_TOTAL];
-        print("ProgressEvent: $progress / $total for DownloadId: $downloadId");
-        break;*/
       default:
         break;
     }
   }
 
-  /// Enqueue a download
-  static Future<String> enqueueDownload(BackdownRequest request) async {
-    String id = await _channel.invokeMethod(METHOD_ENQUEUE_DOWNLOAD, request.toMap());
+  /// Create a download and get an id for it.
+  /// Nothing really happens here, except that you had it off to the native code
+  /// and it generates a downloadId for you to store in case you want to query
+  /// the download, or for understanding the progress and complete events on the
+  /// stream.
+  static Future<String> createDownload(BackdownRequest request) async {
+    String id = await _channel.invokeMethod(METHOD_CREATE_DOWNLOAD, request.toMap());
     return id;
   }
 
+  /// Enqueue a download - schedule it with the system.
+  static Future<bool> enqueueDownload(String downloadId) async {
+    var result = await _channel.invokeMethod(METHOD_ENQUEUE_DOWNLOAD, <String, dynamic>{KEY_DOWNLOAD_ID: downloadId});
+    final bool success = (result as Map).cast<String, bool>()[KEY_SUCCESS];
+    return success;
+  }
+
   /// Cancel an enqueued download.
+  /// @returns - true for success;
   static Future<bool> cancelDownload(String id) async {
     var result = await _channel.invokeMethod(METHOD_CANCEL_DOWNLOAD, <String, dynamic>{KEY_DOWNLOAD_ID: id});
     return result[KEY_SUCCESS];
@@ -127,12 +108,11 @@ class Backdown {
     final String description = "Downloading...";
 
     BackdownRequest request = new BackdownRequest.asap(url, title, description);
+    String id = await Backdown.createDownload(request);
+    bool success = await Backdown.enqueueDownload(id);
+    print("$id created and enqueued? $success");
 
-    String id = await _channel.invokeMethod(METHOD_ENQUEUE_DOWNLOAD, request.toMap());
-
-    print(id);
-
-    final String url2 = "https://rss.art19.com/episodes/eae26461-a482-4d93-a689-914e42f736ec.mp3";
+    /*final String url2 = "https://rss.art19.com/episodes/eae26461-a482-4d93-a689-914e42f736ec.mp3";
     final String title2 = "Morning Joe";
     final String desc2 = "Downloading..";
     BackdownRequest req2 = new BackdownRequest.asap(url2, title2, desc2);
@@ -143,7 +123,7 @@ class Backdown {
 
     var success = await _channel.invokeMethod("cancelDownload", <String, dynamic>{KEY_DOWNLOAD_ID: id2});
 
-    print("Removed $id2 ? ${success[KEY_SUCCESS]}");
+    print("Removed $id2 ? ${success[KEY_SUCCESS]}");*/
   }
 }
 
@@ -227,3 +207,39 @@ abstract class BackdownEvent {
 
   BackdownEvent(this.downloadId);
 }
+
+/*
+        bool success = call.arguments[KEY_SUCCESS];
+        int downloadId = call.arguments[KEY_DOWNLOAD_ID];
+        String filePath = call.arguments[KEY_FILE_PATH];
+        if (success == true) {
+          print("Success");
+          print(downloadId);
+          print(filePath);
+
+          Directory p = await getApplicationDocumentsDirectory();
+          File file;
+          if (filePath.startsWith("file://")) {
+            //iOS returns these...
+            file = new File.fromUri(Uri.parse(filePath));
+          } else {
+            file = new File(filePath);
+          }
+          bool exists = file.existsSync();
+          assert(exists);
+          print("file exists? " + exists.toString());
+
+          String filename = basename(file.path);
+          String newPath = "${p.path}/example/$filename";
+          File f = new File(newPath);
+          f.createSync(recursive: true);
+          file.renameSync(newPath);
+          print("Moved to: $newPath");
+          break;
+        }*/
+
+/*int downloadId = call.arguments[KEY_DOWNLOAD_ID];
+        int progress = call.arguments[KEY_PROGRESS];
+        int total = call.arguments[KEY_TOTAL];
+        print("ProgressEvent: $progress / $total for DownloadId: $downloadId");
+        break;*/
