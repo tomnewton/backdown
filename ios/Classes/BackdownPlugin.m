@@ -1,5 +1,6 @@
 #import "BackdownPlugin.h"
 #import <CommonCrypto/CommonDigest.h>
+#import "BackdownRequest.h";
 
 #define DOWNLOAD_URL @"DOWNLOAD_URL"
 #define WIFI_ONLY @"WIFI_ONLY"
@@ -32,6 +33,7 @@
 -(id)initWithChannel:(FlutterMethodChannel*)chan andRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar{
     if ( self = [super init] ) {
         self.methodChannel = chan;
+        self.requests = [NSMutableDictionary dictionary];
         [registrar addApplicationDelegate:self];
         return self;
     }
@@ -49,7 +51,7 @@
   if ([@"setDefaults" isEqualToString:call.method]) {
       // no op on iOS.
       // this is used to set colors/theme for Android notifications.
-  } else if ([@"enqueueDownload" isEqualToString:call.method]) {
+  } else if ( [@"createDownload" isEqualToString:call.method]) {
       NSString* url = call.arguments[DOWNLOAD_URL];
       NSString* md5 = [self MD5String:url];
       
@@ -57,13 +59,26 @@
       BOOL wifiOnly = call.arguments[WIFI_ONLY];
       BOOL requiresCharging = call.arguments[REQUIRES_CHARGING];
       
-      if ( wifiOnly || requiresCharging ) {
-        [self enqueueDownload:url isDiscretionary:YES doesSendLaunchEvents:YES];
-      } else {
-        [self enqueueDownload:url isDiscretionary:NO doesSendLaunchEvents:YES];
-      }
+      // create the request.
+      BackdownRequest* request = [[BackdownRequest alloc] initWithUrl:url andDownloadId:md5 isDiscretionary:wifiOnly || requiresCharging];
       
+      // save it for later.
+      [self.requests setObject:request forKey:md5];
       result(md5);
+      
+  } else if ([@"enqueueDownload" isEqualToString:call.method]) {
+      NSString *downloadId = call.arguments[KEY_DOWNLOAD_ID];
+      BackdownRequest* request = [self.requests objectForKey:downloadId];
+      if ( request == nil ) {
+          result(@{KEY_SUCCESS: @NO});
+          return;
+      }
+      // send the request to the system.
+      [self enqueueDownload:request.url isDiscretionary:request.isDiscretionary doesSendLaunchEvents:YES];
+      result(@{KEY_SUCCESS: @YES});
+      
+      // remove the reference to the download.
+      [self.requests removeObjectForKey:downloadId];
   } else if ([@"cancelDownload" isEqualToString:call.method]) {
       NSString* downloadId = call.arguments[KEY_DOWNLOAD_ID];
       [self cancelDownload:downloadId andFlutterResult:result];
@@ -208,7 +223,9 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
 }
 
 -(void)URLSession:(NSURLSession*)session task:(nonnull NSURLSessionTask *)task didCompleteWithError:(nullable NSError *)error {
-    NSLog(@"ERROR: %@", error.debugDescription);
+    if ( error != nil ){
+        NSLog(@"ERROR: %@", error.debugDescription);
+    }
 }
     
 - (void)URLSession:(NSURLSession*)session
