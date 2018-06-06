@@ -15,9 +15,7 @@
 #define KEY_PROGRESS @"PROGRESS"
 #define KEY_TOTAL @"TOTAL"
 
-@implementation BackdownPlugin {
-    FlutterMethodChannel* methodChannel;
-}
+@implementation BackdownPlugin
 
 +(NSString*)sessionKey{
     return @"backdownPluginKey";
@@ -33,7 +31,7 @@
 
 -(id)initWithChannel:(FlutterMethodChannel*)chan andRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar{
     if ( self = [super init] ) {
-        methodChannel = chan;
+        self.methodChannel = chan;
         [registrar addApplicationDelegate:self];
         return self;
     }
@@ -155,7 +153,7 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
     NSInteger status = [(NSHTTPURLResponse*)downloadTask.response statusCode];
     if (status < 200 || 299 < status ){
         NSString* errMsg = [NSString stringWithFormat:@"HTTP Status was: %ld", (long)status];
-        [methodChannel invokeMethod:COMPLETE_EVENT arguments:@{ KEY_SUCCESS: @NO, KEY_ERROR_MESSAGE:errMsg}];
+        [self.methodChannel invokeMethod:COMPLETE_EVENT arguments:@{ KEY_SUCCESS: @NO, KEY_ERROR_MESSAGE:errMsg}];
         return;
     }
     
@@ -175,7 +173,7 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
     [fm createDirectoryAtURL:to withIntermediateDirectories:YES attributes:nil error:&error];
     if ( error != nil ) {
         NSString* errMsg = [error description];
-        [methodChannel invokeMethod:COMPLETE_EVENT arguments:@{ KEY_SUCCESS: @NO, KEY_ERROR_MESSAGE:errMsg}];
+        [self.methodChannel invokeMethod:COMPLETE_EVENT arguments:@{ KEY_SUCCESS: @NO, KEY_ERROR_MESSAGE:errMsg}];
         return;
     }
     
@@ -192,17 +190,17 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
         if ( error != nil ){
             errMsg = [error description];
         }
-        [methodChannel invokeMethod:COMPLETE_EVENT arguments:@{ KEY_SUCCESS: @NO, KEY_ERROR_MESSAGE:errMsg}];
+        [self.methodChannel invokeMethod:COMPLETE_EVENT arguments:@{ KEY_SUCCESS: @NO, KEY_ERROR_MESSAGE:errMsg}];
         return;
     }
     
     NSDictionary *args = @{
         KEY_SUCCESS: @YES,
         KEY_DOWNLOAD_ID: @0,
-        KEY_FILE_PATH: [to relativeString],
+        KEY_FILE_PATH: [to absoluteString],
     };
     
-    [methodChannel invokeMethod:COMPLETE_EVENT arguments:args];
+    [self.methodChannel invokeMethod:COMPLETE_EVENT arguments:args];
 }
     
 - (void)URLSession:(NSURLSession*)session
@@ -217,7 +215,7 @@ totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
        KEY_TOTAL: [NSNumber numberWithLongLong:totalBytesExpectedToWrite],
        KEY_PROGRESS: [NSNumber numberWithLongLong:totalBytesWritten],
     };
-    [methodChannel invokeMethod:PROGRESS_EVENT arguments:args];
+    [self.methodChannel invokeMethod:PROGRESS_EVENT arguments:args];
 }
     
 - (void)URLSession:(nonnull NSURLSession *)session downloadTask:(nonnull NSURLSessionDownloadTask *)downloadTask didResumeAtOffset:(int64_t)fileOffset expectedTotalBytes:(int64_t)expectedTotalBytes {

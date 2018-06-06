@@ -1,14 +1,12 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/services.dart';
-import 'package:path/path.dart';
-import 'package:path_provider/path_provider.dart';
 
 class Backdown {
   static Backdown _singleton;
-  static const MethodChannel _channel = const MethodChannel('backdown');
+  static const MethodChannel _channel = const MethodChannel("backdown");
+  static final StreamController<BackdownEvent> _sc = new StreamController<BackdownEvent>();
 
   // Methods supported.
   static const String METHOD_ENQUEUE_DOWNLOAD = "enqueueDownload";
@@ -40,23 +38,34 @@ class Backdown {
 
   Backdown._internal();
 
-  factory Backdown(Color notificationColor) {
+  /// notificationColor needs only be sent at application
+  /// startup.
+  factory Backdown({Color notificationColor}) {
     if (Backdown._singleton != null) {
       return Backdown._singleton;
     }
     _singleton = new Backdown._internal();
     _channel.setMethodCallHandler(_singleton.handler);
 
+    var color = notificationColor ?? new Color(0xFF000000);
+
     // set the defaults.
-    _channel.invokeMethod(METHOD_SET_DEFAULTS,
-        <String, Object>{"color": new Color(0xFF00FF00).value});
+    _channel.invokeMethod(METHOD_SET_DEFAULTS, <String, Object>{"color": color.value});
 
     return _singleton;
   }
 
+  // Listen to this...
+  static Stream<BackdownEvent> get backdownEventStream => _sc.stream;
+
   Future<dynamic> handler(MethodCall call) async {
+    print("Heard handler call...");
     switch (call.method) {
       case COMPLETE_EVENT:
+        DownloadCompleteEvent event = new DownloadCompleteEvent.from(call.arguments);
+        _sc.add(event);
+        break;
+      /*
         bool success = call.arguments[KEY_SUCCESS];
         int downloadId = call.arguments[KEY_DOWNLOAD_ID];
         String filePath = call.arguments[KEY_FILE_PATH];
@@ -83,19 +92,35 @@ class Backdown {
           f.createSync(recursive: true);
           file.renameSync(newPath);
           print("Moved to: $newPath");
-        }
-        break;
+          break;
+        }*/
       case PROGRESS_EVENT:
-        int downloadId = call.arguments[KEY_DOWNLOAD_ID];
+        DownloadProgressEvent event = new DownloadProgressEvent.from(call.arguments);
+        _sc.add(event);
+        break;
+      /*int downloadId = call.arguments[KEY_DOWNLOAD_ID];
         int progress = call.arguments[KEY_PROGRESS];
         int total = call.arguments[KEY_TOTAL];
         print("ProgressEvent: $progress / $total for DownloadId: $downloadId");
-        break;
+        break;*/
       default:
         break;
     }
   }
 
+  /// Enqueue a download
+  static Future<String> enqueueDownload(BackdownRequest request) async {
+    String id = await _channel.invokeMethod(METHOD_ENQUEUE_DOWNLOAD, request.toMap());
+    return id;
+  }
+
+  /// Cancel an enqueued download.
+  static Future<bool> cancelDownload(String id) async {
+    var result = await _channel.invokeMethod(METHOD_CANCEL_DOWNLOAD, <String, dynamic>{KEY_DOWNLOAD_ID: id});
+    return result[KEY_SUCCESS];
+  }
+
+  /// debug.
   static void downloadFileWithURL() async {
     final String url = "https://traffic.megaphone.fm/GLT8678602522.mp3";
     final String title = "Episode 101 - BBC World at One";
@@ -103,24 +128,20 @@ class Backdown {
 
     BackdownRequest request = new BackdownRequest.asap(url, title, description);
 
-    String id =
-        await _channel.invokeMethod(METHOD_ENQUEUE_DOWNLOAD, request.toMap());
+    String id = await _channel.invokeMethod(METHOD_ENQUEUE_DOWNLOAD, request.toMap());
 
     print(id);
 
-    final String url2 =
-        "https://rss.art19.com/episodes/eae26461-a482-4d93-a689-914e42f736ec.mp3";
+    final String url2 = "https://rss.art19.com/episodes/eae26461-a482-4d93-a689-914e42f736ec.mp3";
     final String title2 = "Morning Joe";
     final String desc2 = "Downloading..";
     BackdownRequest req2 = new BackdownRequest.asap(url2, title2, desc2);
-    String id2 =
-        await _channel.invokeMethod(METHOD_ENQUEUE_DOWNLOAD, req2.toMap());
+    String id2 = await _channel.invokeMethod(METHOD_ENQUEUE_DOWNLOAD, req2.toMap());
 
     print(id);
     print(id2);
 
-    var success = await _channel.invokeMethod(
-        "cancelDownload", <String, dynamic>{KEY_DOWNLOAD_ID: id2});
+    var success = await _channel.invokeMethod("cancelDownload", <String, dynamic>{KEY_DOWNLOAD_ID: id2});
 
     print("Removed $id2 ? ${success[KEY_SUCCESS]}");
   }
@@ -151,8 +172,7 @@ class BackdownRequest {
   /// iOS - Will force iOS to discretionary, allowing the system to schedule the download
   /// at the optimum time.
   /// Android - wifiOnly = true, requiresCharging = true, requiresDeviceIdle = false;
-  BackdownRequest.discretionaryWithWifiAndPower(
-      this.url, this.title, this.description)
+  BackdownRequest.discretionaryWithWifiAndPower(this.url, this.title, this.description)
       : this.wifiOnly = true,
         this.androidRequiresCharging = true,
         this.androidRequiresDeviceIdle = false;
@@ -160,8 +180,7 @@ class BackdownRequest {
   /// iOS - Will force iOS to discretionary, allowing the system to schedule the download
   /// at the optimum time.
   /// Android - wifiOnly = true, requiresCharging = true, requiresDeviceIdle = true;
-  BackdownRequest.discretionaryWithWifiPowerAndIdle(
-      this.url, this.title, this.description)
+  BackdownRequest.discretionaryWithWifiPowerAndIdle(this.url, this.title, this.description)
       : this.wifiOnly = true,
         this.androidRequiresCharging = true,
         this.androidRequiresDeviceIdle = true;
@@ -173,8 +192,38 @@ class BackdownRequest {
       Backdown.KEY_DESCRIPTION: this.description,
       Backdown.KEY_WIFI_ONLY: this.wifiOnly ?? false,
       Backdown.KEY_REQUIRES_CHARGING: this.androidRequiresCharging ?? false,
-      Backdown.KEY_REQUIRES_DEVICE_IDLE:
-          this.androidRequiresDeviceIdle ?? false,
+      Backdown.KEY_REQUIRES_DEVICE_IDLE: this.androidRequiresDeviceIdle ?? false,
     };
   }
+}
+
+/// These events are sent to the BackdownPlugin's event Stream.
+/// Tells a listener about progress.
+class DownloadProgressEvent extends BackdownEvent {
+  int progress;
+  int expectedBytes;
+  DownloadProgressEvent(String downloadId, this.progress, this.expectedBytes) : super(downloadId);
+
+  DownloadProgressEvent.from(Map<String, dynamic> data) : super(data[Backdown.KEY_DOWNLOAD_ID]) {
+    this.progress = data[Backdown.KEY_PROGRESS];
+    this.expectedBytes = data[Backdown.KEY_TOTAL];
+  }
+}
+
+/// Broadcast when the Download is complete.
+class DownloadCompleteEvent extends BackdownEvent {
+  bool success;
+  String filePath;
+  DownloadCompleteEvent(String downloadId, this.success, this.filePath) : super(downloadId);
+
+  DownloadCompleteEvent.from(Map<String, dynamic> data) : super(data[Backdown.KEY_DOWNLOAD_ID]) {
+    this.success = data[Backdown.KEY_SUCCESS];
+    this.filePath = data[Backdown.KEY_FILE_PATH];
+  }
+}
+
+abstract class BackdownEvent {
+  String downloadId;
+
+  BackdownEvent(this.downloadId);
 }

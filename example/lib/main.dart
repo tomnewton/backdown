@@ -11,11 +11,10 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   String _platformVersion = 'Unknown';
   Backdown _backdown;
-
   @override
   initState() {
     super.initState();
-    _backdown = new Backdown(Colors.green);
+    _backdown = new Backdown(notificationColor: Colors.green);
     initPlatformState();
   }
 
