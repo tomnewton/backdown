@@ -225,6 +225,7 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
 -(void)URLSession:(NSURLSession*)session task:(nonnull NSURLSessionTask *)task didCompleteWithError:(nullable NSError *)error {
     if ( error != nil ){
         NSLog(@"ERROR: %@", error.debugDescription);
+        NSLog(@"Localized: %@", error.localizedDescription);
     }
 }
     
