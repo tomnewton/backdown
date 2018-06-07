@@ -201,6 +201,14 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
     
     NSLog(@"Path to new file: %@", to.absoluteString);
     
+    if ([fm fileExistsAtPath:[to relativePath]]) {
+        NSError* removeErr;
+        [fm removeItemAtURL:to error:&removeErr];
+        if ( removeErr != nil ) {
+            return [self sendFlutterEvent:COMPLETE_EVENT withErrorMessage:[removeErr debugDescription]];
+        }
+    }
+    
     BOOL moved = [fm moveItemAtURL:location toURL:to error:&error]; // [fm moveItemAtPath:[location absoluteString] toPath:[to absoluteString] error:&error]; //
     
     if ( error != nil || moved == NO){
@@ -209,13 +217,14 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
         if ( error != nil ){
             errMsg = [error description];
         }
-        [self.methodChannel invokeMethod:COMPLETE_EVENT arguments:@{ KEY_SUCCESS: @NO, KEY_ERROR_MESSAGE:errMsg}];
-        return;
+        return [self sendFlutterEvent:COMPLETE_EVENT withErrorMessage:errMsg];
     }
+    
+    NSString* downloadId = [self MD5String:downloadTask.originalRequest.URL.absoluteString];
     
     NSDictionary *args = @{
                            KEY_SUCCESS: @YES,
-                           KEY_DOWNLOAD_ID: @0,
+                           KEY_DOWNLOAD_ID: downloadId,
                            KEY_FILE_PATH: [to absoluteString],
                            };
     
@@ -288,6 +297,10 @@ handleEventsForBackgroundURLSession:(nonnull NSString*)identifier
             result[8], result[9], result[10], result[11],
             result[12], result[13], result[14], result[15]
             ];
+}
+
+- (void)sendFlutterEvent:(NSString*)event withErrorMessage:(NSString*)errorMessage {
+    [self.methodChannel invokeMethod:event arguments:@{ KEY_SUCCESS: @NO, KEY_ERROR_MESSAGE:errorMessage}];
 }
 
 
