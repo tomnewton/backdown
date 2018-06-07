@@ -236,8 +236,10 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
 totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
     NSLog(@"Progress for file");
     /// progress
+    NSString* downloadId = [self MD5String:downloadTask.originalRequest.URL.absoluteString];
+    
     NSDictionary *args = @{
-                           KEY_DOWNLOAD_ID: @0,
+                           KEY_DOWNLOAD_ID: downloadId,
                            KEY_TOTAL: [NSNumber numberWithLongLong:totalBytesExpectedToWrite],
                            KEY_PROGRESS: [NSNumber numberWithLongLong:totalBytesWritten],
                            };
