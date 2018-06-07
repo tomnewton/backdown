@@ -1,6 +1,6 @@
 #import "BackdownPlugin.h"
 #import <CommonCrypto/CommonDigest.h>
-#import "BackdownRequest.h";
+#import "BackdownRequest.h"
 
 #define DOWNLOAD_URL @"DOWNLOAD_URL"
 #define WIFI_ONLY @"WIFI_ONLY"
