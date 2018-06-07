@@ -173,9 +173,9 @@ class BackdownRequest {
       Backdown.KEY_DOWNLOAD_URL: this.url,
       Backdown.KEY_TITLE: this.title,
       Backdown.KEY_DESCRIPTION: this.description,
-      Backdown.KEY_WIFI_ONLY: this.wifiOnly ?? false,
-      Backdown.KEY_REQUIRES_CHARGING: this.androidRequiresCharging ?? false,
-      Backdown.KEY_REQUIRES_DEVICE_IDLE: this.androidRequiresDeviceIdle ?? false,
+      Backdown.KEY_WIFI_ONLY: this.wifiOnly,
+      Backdown.KEY_REQUIRES_CHARGING: this.androidRequiresCharging,
+      Backdown.KEY_REQUIRES_DEVICE_IDLE: this.androidRequiresDeviceIdle,
     };
   }
 }
