@@ -56,11 +56,11 @@
         NSString* md5 = [self MD5String:url];
         
         // figure out if this is discretionary
-        BOOL wifiOnly = call.arguments[WIFI_ONLY];
-        BOOL requiresCharging = call.arguments[REQUIRES_CHARGING];
+        BOOL wifiOnly = [[call.arguments objectForKey:WIFI_ONLY] boolValue];
+        BOOL requiresCharging = [[call.arguments objectForKey:REQUIRES_CHARGING] boolValue];
         
         // create the request.
-        BackdownRequest* request = [[BackdownRequest alloc] initWithUrl:url andDownloadId:md5 isDiscretionary:wifiOnly || requiresCharging];
+        BackdownRequest* request = [[BackdownRequest alloc] initWithUrl:url andDownloadId:md5 isDiscretionary:(wifiOnly  || requiresCharging)];
         
         // save it for later.
         [self.requests setObject:request forKey:md5];
@@ -74,7 +74,7 @@
             return;
         }
         // send the request to the system.
-        [self enqueueDownload:request.url isDiscretionary:NO doesSendLaunchEvents:YES];
+        [self enqueueDownload:request.url isDiscretionary:request.isDiscretionary doesSendLaunchEvents:YES];
         result(@{KEY_SUCCESS: @YES});
         
         // remove the reference to the download.
