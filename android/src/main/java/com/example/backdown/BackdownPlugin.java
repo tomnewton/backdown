@@ -74,6 +74,7 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
   private static final String WIFI_ONLY = "WIFI_ONLY";
   private static final String REQUIRES_CHARGING = "REQUIRED_CHARGING";
   private static final String REQUIRES_DEVICE_IDLE = "REQUIRES_DEVICE_IDLE";
+  private static final String SHOW_NOTIFICATION = "SHOW_NOTIFICATION";
 
   private static final String FILE_PATH = "FILE_PATH";
   private static final String SUCCESS = "SUCCESS";
@@ -123,30 +124,10 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
   public void onMethodCall(MethodCall call, Result result) {
     switch (call.method) {
       case METHOD_CREATE_DOWNLOAD:
-        Uri uri = Uri.parse(call.argument(DOWNLOAD_URL).toString());
-        boolean wifiOnly = call.argument(WIFI_ONLY);
-        boolean requiresCharging = call.argument(REQUIRES_CHARGING);
-        boolean requiresDeviceIdle = call.argument(REQUIRES_DEVICE_IDLE);
-        String title = call.argument(TITLE);
-        String description = call.argument(DESCRIPTION);
-        DownloadRequest request = new DownloadRequest(uri, title, description, wifiOnly, requiresCharging, requiresDeviceIdle);
-        this.requests.put(request.getDownloadId(), request);
-        result.success(request.getDownloadId());
+        createDownload(call, result);
         break;
       case METHOD_ENQUEUE_DOWNLOAD:
-        String downloadId = call.argument(DOWNLOAD_ID);
-        DownloadRequest r = requests.get(downloadId);
-        HashMap<String, Object> args = new HashMap<>();
-        if ( r == null ) {
-          args.put(SUCCESS, false);
-          result.success(args);
-          return;
-        }
-        // enqueue it.
-        enqueueDownload(r.uri, r.title, r.description, r.wifiOnly, r.requiresCharging, r.requiresDeviceIdle);
-        requests.remove(downloadId);
-        args.put(SUCCESS, true);
-        result.success(args);
+        enqueueDownload(call, result);
         break;
       case METHOD_CANCEL_DOWNLOAD:
         String dId = call.argument(DOWNLOAD_ID);
@@ -160,6 +141,27 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
         result.notImplemented();
     }
   }
+
+  private void createDownload(MethodCall call, Result result ) {
+    Uri uri = Uri.parse(call.argument(DOWNLOAD_URL).toString());
+    boolean wifiOnly = call.argument(WIFI_ONLY);
+    boolean requiresCharging = call.argument(REQUIRES_CHARGING);
+    boolean requiresDeviceIdle = call.argument(REQUIRES_DEVICE_IDLE);
+    boolean showNotification = call.argument(SHOW_NOTIFICATION);
+    String title = call.argument(TITLE);
+    String description = call.argument(DESCRIPTION);
+    DownloadRequest request = new DownloadRequest(
+            uri,
+            title,
+            description,
+            wifiOnly,
+            requiresCharging,
+            requiresDeviceIdle,
+            showNotification);
+    this.requests.put(request.getDownloadId(), request);
+    result.success(request.getDownloadId());
+  }
+
 
   private void cancelDownload(String downloadId, Result result) {
     HashMap<String, Object> args = new HashMap<>();
@@ -193,37 +195,43 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
 
   /**
    * Enqueues a download with the DownloadManager.
-   * @param url - url to download
-   * @param title - Title to display on a notification during download.
-   * @param description - Description to display on notification.
-   * @param wifiOnly - Whether this download should wait for Wifi only.
-   * @param requiresCharging - Whether this download should wait until the device is plugged in.
-   * @param requiresDeviceIdle  -  Whether this download should wait until the device is idle. (not actively being used)
    */
-  private void enqueueDownload(Uri url, String title, String description, boolean wifiOnly, boolean requiresCharging, boolean requiresDeviceIdle) {
-    Request request = new Request(url);
-    request.setTitle(title);
-    request.setDescription(description);
+  private void enqueueDownload(MethodCall call, Result result) {
+    String downloadId = call.argument(DOWNLOAD_ID);
+    HashMap<String, Object> args = new HashMap<>();
+    if (!requests.containsKey(downloadId)) {
+      args.put(SUCCESS, false);
+      result.success(args);
+      return;
+    }
+
+    DownloadRequest r = requests.get(downloadId);
+    Request request = new Request(r.uri);
+    request.setTitle(r.title);
+    request.setDescription(r.description);
     request.setVisibleInDownloadsUi(false);
     request.setNotificationVisibility(Request.VISIBILITY_HIDDEN);
 
-    if (wifiOnly) {
+    if (r.wifiOnly) {
       request.setAllowedNetworkTypes(Request.NETWORK_WIFI);
     } else {
       request.setAllowedNetworkTypes(Request.NETWORK_MOBILE|Request.NETWORK_WIFI);
     }
 
-    if (Build.VERSION.SDK_INT >= 24 && requiresCharging) {
+    if (Build.VERSION.SDK_INT >= 24 && r.requiresCharging) {
       request.setRequiresCharging(true);
     }
 
-    if (Build.VERSION.SDK_INT >= 24 && requiresDeviceIdle) {
+    if (Build.VERSION.SDK_INT >= 24 && r.requiresDeviceIdle) {
       request.setRequiresDeviceIdle(true);
     }
 
     mDM.enqueue(request);
 
     startProgressChecking();
+
+    args.put(SUCCESS, true);
+    result.success(args);
   }
 
   private Context getActiveContext() {
@@ -264,7 +272,9 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
         // Clients can use this id to keep track of the download
         // jobs requested.
         String originalUrl = c.getString(c.getColumnIndex(DownloadManager.COLUMN_URI));
-        args.put(DOWNLOAD_ID, getMD5(originalUrl));
+        String downloadId = getMD5(originalUrl);
+
+        args.put(DOWNLOAD_ID, downloadId);
 
         // get the downloads status
         int status = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_STATUS));
@@ -279,6 +289,10 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
           // but we do clear it in the positive path.
           Notification note = buildIndeterminateNotification(context, title, text);
           notificationManager.notify((int)id, note);
+
+          // Clean it out of our requests objects.
+          requests.remove(downloadId);
+
 
           // Successfully downloaded by the DownloadManager
           // Now we need to find the file, and move it to where we can
@@ -364,15 +378,19 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
         long id = c.getLong(c.getColumnIndex(DownloadManager.COLUMN_ID));
         String status = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_STATUS)) == DownloadManager.STATUS_PENDING ? "Queued.." : "Downloading..";
         String originalUrl = c.getString(c.getColumnIndex(DownloadManager.COLUMN_URI));
+        String downloadId = getMD5(originalUrl);
 
-        Notification note = buildNotification(getActiveContext(), title, status, progress, size);
-        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(getActiveContext());
-        notificationManager.notify(Math.round(id), note);
+        if ( requests.containsKey(downloadId) && requests.get(downloadId).showNotification ) {
+          // show the notification.
+          Notification note = buildNotification(getActiveContext(), title, status, progress, size);
+          NotificationManagerCompat notificationManager = NotificationManagerCompat.from(getActiveContext());
+          notificationManager.notify(Math.round(id), note);
+        }
 
         HashMap<String, Object> args = new HashMap<>();
         args.put(PROGRESS, progress);
         args.put(TOTAL, size);
-        args.put(DOWNLOAD_ID, getMD5(originalUrl));
+        args.put(DOWNLOAD_ID, downloadId);
         mChannel.invokeMethod(PROGRESS_EVENT, args);
       } while (c.moveToNext());
     }
@@ -596,17 +614,19 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
     boolean wifiOnly;
     boolean requiresCharging;
     boolean requiresDeviceIdle;
+    boolean showNotification;
 
-    DownloadRequest(Uri uri, String title, String description, boolean wifiOnly, boolean requiresCharging, boolean requiresDeviceIdle) {
+    DownloadRequest(Uri uri, String title, String description, boolean wifiOnly, boolean requiresCharging, boolean requiresDeviceIdle, boolean showNotification) {
       this.uri = uri;
       this.title = title;
       this.description = description;
       this.wifiOnly = wifiOnly;
       this.requiresCharging = requiresCharging;
       this.requiresDeviceIdle = requiresDeviceIdle;
+      this.showNotification = showNotification;
     }
 
-    public String getDownloadId(){
+    private String getDownloadId(){
       if ( _downloadId == null ) {
         _downloadId = getMD5(this.uri.toString());
       }

@@ -27,6 +27,7 @@ class Backdown {
   static const String KEY_WIFI_ONLY = "WIFI_ONLY";
   static const String KEY_REQUIRES_CHARGING = "REQUIRED_CHARGING";
   static const String KEY_REQUIRES_DEVICE_IDLE = "REQUIRES_DEVICE_IDLE";
+  static const String KEY_SHOW_NOTIFICATION = "SHOW_NOTIFICATION";
 
   // Progress Event Keys
   static const String KEY_PROGRESS = "PROGRESS";
@@ -124,9 +125,8 @@ class Backdown {
     //final String url =
     //    "https://ia800500.us.archive.org/5/items/aesop_fables_volume_one_librivox/fables_01_00_aesop.mp3";
     final String title = "Episode 101 - BBC World at One";
-    final String description = "Downloading...";
 
-    BackdownRequest request = new BackdownRequest.asap(url, title, description);
+    BackdownRequest request = new BackdownRequest.asap(url, title);
     String id = await Backdown.createDownload(request);
     bool success = await Backdown.enqueueDownload(id);
     print("$id created and enqueued? $success");
@@ -153,9 +153,10 @@ class BackdownRequest {
   final bool wifiOnly;
   final bool androidRequiresCharging;
   final bool androidRequiresDeviceIdle;
+  final bool showNotification;
 
   /// iOS and Android will download this file asap.
-  BackdownRequest.asap(this.url, this.title, this.description)
+  BackdownRequest.asap(this.url, this.title, {this.description: "", this.showNotification: true})
       : this.wifiOnly = false,
         this.androidRequiresCharging = false,
         this.androidRequiresDeviceIdle = false;
@@ -163,7 +164,7 @@ class BackdownRequest {
   /// iOS - Will force iOS to discretionary, allowing the system to schedule the download
   /// at the optimum time.
   /// Android - wifiOnly = true, requiresCharging = requiresDeviceIdle = false;
-  BackdownRequest.discretionaryWithWifi(this.url, this.title, this.description)
+  BackdownRequest.discretionaryWithWifi(this.url, this.title, {this.description: "", this.showNotification: true})
       : this.wifiOnly = true,
         this.androidRequiresCharging = false,
         this.androidRequiresDeviceIdle = false;
@@ -171,7 +172,8 @@ class BackdownRequest {
   /// iOS - Will force iOS to discretionary, allowing the system to schedule the download
   /// at the optimum time.
   /// Android - wifiOnly = true, requiresCharging = true, requiresDeviceIdle = false;
-  BackdownRequest.discretionaryWithWifiAndPower(this.url, this.title, this.description)
+  BackdownRequest.discretionaryWithWifiAndPower(this.url, this.title,
+      {this.description: "", this.showNotification: true})
       : this.wifiOnly = true,
         this.androidRequiresCharging = true,
         this.androidRequiresDeviceIdle = false;
@@ -179,7 +181,8 @@ class BackdownRequest {
   /// iOS - Will force iOS to discretionary, allowing the system to schedule the download
   /// at the optimum time.
   /// Android - wifiOnly = true, requiresCharging = true, requiresDeviceIdle = true;
-  BackdownRequest.discretionaryWithWifiPowerAndIdle(this.url, this.title, this.description)
+  BackdownRequest.discretionaryWithWifiPowerAndIdle(this.url, this.title,
+      {this.description: "", this.showNotification: true})
       : this.wifiOnly = true,
         this.androidRequiresCharging = true,
         this.androidRequiresDeviceIdle = true;
@@ -192,6 +195,7 @@ class BackdownRequest {
       Backdown.KEY_WIFI_ONLY: this.wifiOnly,
       Backdown.KEY_REQUIRES_CHARGING: this.androidRequiresCharging,
       Backdown.KEY_REQUIRES_DEVICE_IDLE: this.androidRequiresDeviceIdle,
+      Backdown.KEY_SHOW_NOTIFICATION: this.showNotification,
     };
   }
 }
