@@ -21,13 +21,13 @@
 +(NSString*)sessionKey{
     return @"backdownPluginKey";
 }
-    
+
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar {
-  FlutterMethodChannel* channel = [FlutterMethodChannel
-      methodChannelWithName:@"backdown"
-            binaryMessenger:[registrar messenger]];
+    FlutterMethodChannel* channel = [FlutterMethodChannel
+                                     methodChannelWithName:@"backdown"
+                                     binaryMessenger:[registrar messenger]];
     BackdownPlugin* instance = [[BackdownPlugin alloc] initWithChannel:channel andRegistrar:registrar];
-  [registrar addMethodCallDelegate:instance channel:channel];
+    [registrar addMethodCallDelegate:instance channel:channel];
 }
 
 -(id)initWithChannel:(FlutterMethodChannel*)chan andRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar{
@@ -39,7 +39,7 @@
     }
     return nil;
 }
-    
+
 -(NSURLSession*)getURLSessionDiscretionary:(bool)isDiscretionary doesSendLaunchEvents:(bool)sendsLaunchEvents {
     NSURLSessionConfiguration* config = [NSURLSessionConfiguration backgroundSessionConfigurationWithIdentifier:[BackdownPlugin sessionKey]];
     [config setDiscretionary:isDiscretionary];
@@ -48,43 +48,43 @@
 }
 
 - (void)handleMethodCall:(FlutterMethodCall*)call result:(FlutterResult)result {
-  if ([@"setDefaults" isEqualToString:call.method]) {
-      // no op on iOS.
-      // this is used to set colors/theme for Android notifications.
-  } else if ( [@"createDownload" isEqualToString:call.method]) {
-      NSString* url = call.arguments[DOWNLOAD_URL];
-      NSString* md5 = [self MD5String:url];
-      
-      // figure out if this is discretionary
-      BOOL wifiOnly = call.arguments[WIFI_ONLY];
-      BOOL requiresCharging = call.arguments[REQUIRES_CHARGING];
-      
-      // create the request.
-      BackdownRequest* request = [[BackdownRequest alloc] initWithUrl:url andDownloadId:md5 isDiscretionary:wifiOnly || requiresCharging];
-      
-      // save it for later.
-      [self.requests setObject:request forKey:md5];
-      result(md5);
-      
-  } else if ([@"enqueueDownload" isEqualToString:call.method]) {
-      NSString *downloadId = call.arguments[KEY_DOWNLOAD_ID];
-      BackdownRequest* request = [self.requests objectForKey:downloadId];
-      if ( request == nil ) {
-          result(@{KEY_SUCCESS: @NO});
-          return;
-      }
-      // send the request to the system.
-      [self enqueueDownload:request.url isDiscretionary:request.isDiscretionary doesSendLaunchEvents:YES];
-      result(@{KEY_SUCCESS: @YES});
-      
-      // remove the reference to the download.
-      [self.requests removeObjectForKey:downloadId];
-  } else if ([@"cancelDownload" isEqualToString:call.method]) {
-      NSString* downloadId = call.arguments[KEY_DOWNLOAD_ID];
-      [self cancelDownload:downloadId andFlutterResult:result];
-  } else {
-      result(FlutterMethodNotImplemented);
-  }
+    if ([@"setDefaults" isEqualToString:call.method]) {
+        // no op on iOS.
+        // this is used to set colors/theme for Android notifications.
+    } else if ( [@"createDownload" isEqualToString:call.method]) {
+        NSString* url = call.arguments[DOWNLOAD_URL];
+        NSString* md5 = [self MD5String:url];
+        
+        // figure out if this is discretionary
+        BOOL wifiOnly = call.arguments[WIFI_ONLY];
+        BOOL requiresCharging = call.arguments[REQUIRES_CHARGING];
+        
+        // create the request.
+        BackdownRequest* request = [[BackdownRequest alloc] initWithUrl:url andDownloadId:md5 isDiscretionary:wifiOnly || requiresCharging];
+        
+        // save it for later.
+        [self.requests setObject:request forKey:md5];
+        result(md5);
+        
+    } else if ([@"enqueueDownload" isEqualToString:call.method]) {
+        NSString *downloadId = call.arguments[KEY_DOWNLOAD_ID];
+        BackdownRequest* request = [self.requests objectForKey:downloadId];
+        if ( request == nil ) {
+            result(@{KEY_SUCCESS: @NO});
+            return;
+        }
+        // send the request to the system.
+        [self enqueueDownload:request.url isDiscretionary:request.isDiscretionary doesSendLaunchEvents:YES];
+        result(@{KEY_SUCCESS: @YES});
+        
+        // remove the reference to the download.
+        [self.requests removeObjectForKey:downloadId];
+    } else if ([@"cancelDownload" isEqualToString:call.method]) {
+        NSString* downloadId = call.arguments[KEY_DOWNLOAD_ID];
+        [self cancelDownload:downloadId andFlutterResult:result];
+    } else {
+        result(FlutterMethodNotImplemented);
+    }
 }
 
 -(void)cancelDownload:(NSString*)downloadId andFlutterResult:(FlutterResult)result {
@@ -101,7 +101,7 @@
         result(@{KEY_SUCCESS: @NO});
     }];
 }
-    
+
 -(void)enqueueDownload:(NSString*)urlStr
        isDiscretionary:(bool)isDiscretionary
   doesSendLaunchEvents:(bool)doesSendLaunchEvents {
@@ -144,13 +144,13 @@
         [task resume];
     }
 }
-    
+
 #pragma mark - NSURLSessionDelegate
-    
+
 -(void)URLSession:(NSURLSession*)session didBecomeInvalidWithError:(nullable NSError *)error {
     NSLog(@"Session became invalid %@", error.description);
 }
-    
+
 -(void)URLSessionDidFinishEventsForBackgroundURLSession:(NSURLSession*)session {
     // If we stored a backgroundCompletionHandler - call it.
     if ( self.backgroundCompletionHandler != nil ) {
@@ -160,9 +160,9 @@
     }
 }
 
-    
+
 #pragma mark - NSURLSessionDownloadDelegate
-    
+
 - (void)URLSession:(nonnull NSURLSession *)session
       downloadTask:(nonnull NSURLSessionDownloadTask *)downloadTask
 didFinishDownloadingToURL:(nonnull NSURL *)location {
@@ -198,7 +198,7 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
     
     // add the filename.
     to = [to URLByAppendingPathComponent:downloadTask.originalRequest.URL.lastPathComponent];
-
+    
     NSLog(@"Path to new file: %@", to.absoluteString);
     
     BOOL moved = [fm moveItemAtURL:location toURL:to error:&error]; // [fm moveItemAtPath:[location absoluteString] toPath:[to absoluteString] error:&error]; //
@@ -214,10 +214,10 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
     }
     
     NSDictionary *args = @{
-        KEY_SUCCESS: @YES,
-        KEY_DOWNLOAD_ID: @0,
-        KEY_FILE_PATH: [to absoluteString],
-    };
+                           KEY_SUCCESS: @YES,
+                           KEY_DOWNLOAD_ID: @0,
+                           KEY_FILE_PATH: [to absoluteString],
+                           };
     
     [self.methodChannel invokeMethod:COMPLETE_EVENT arguments:args];
 }
@@ -228,7 +228,7 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
         NSLog(@"Localized: %@", error.localizedDescription);
     }
 }
-    
+
 - (void)URLSession:(NSURLSession*)session
       downloadTask:(nonnull NSURLSessionDownloadTask*)downloadTask
       didWriteData:(int64_t)bytesWritten
@@ -237,13 +237,13 @@ totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
     NSLog(@"Progress for file");
     /// progress
     NSDictionary *args = @{
-       KEY_DOWNLOAD_ID: @0,
-       KEY_TOTAL: [NSNumber numberWithLongLong:totalBytesExpectedToWrite],
-       KEY_PROGRESS: [NSNumber numberWithLongLong:totalBytesWritten],
-    };
+                           KEY_DOWNLOAD_ID: @0,
+                           KEY_TOTAL: [NSNumber numberWithLongLong:totalBytesExpectedToWrite],
+                           KEY_PROGRESS: [NSNumber numberWithLongLong:totalBytesWritten],
+                           };
     [self.methodChannel invokeMethod:PROGRESS_EVENT arguments:args];
 }
-    
+
 - (void)URLSession:(nonnull NSURLSession *)session downloadTask:(nonnull NSURLSessionDownloadTask *)downloadTask didResumeAtOffset:(int64_t)fileOffset expectedTotalBytes:(int64_t)expectedTotalBytes {
     // did resume
     NSLog(@"Download did resume for url: %@", downloadTask.originalRequest.URL.absoluteString);
@@ -259,7 +259,7 @@ handleEventsForBackgroundURLSession:(nonnull NSString*)identifier
 }
 
 #pragma mark - helpers
-    
+
 - (NSURL*)applicationDataDirectory {
     NSFileManager* sharedFM = [NSFileManager defaultManager];
     NSArray* possibleURLs = [sharedFM URLsForDirectory:NSDocumentDirectory
@@ -288,5 +288,5 @@ handleEventsForBackgroundURLSession:(nonnull NSString*)identifier
             ];
 }
 
-    
+
 @end
