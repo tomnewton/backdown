@@ -63,13 +63,12 @@ class Backdown {
 
   Future<dynamic> handler(MethodCall call) async {
     Map<String, dynamic> arguments = (call.arguments as Map).cast<String, dynamic>();
-    bool success = arguments[KEY_SUCCESS];
-
     switch (call.method) {
 
       /// A download has completed.
       case COMPLETE_EVENT:
         print("Heard handler call...COMPLETE_EVENT");
+        bool success = arguments[KEY_SUCCESS];
         if (success && _sc.hasListener) {
           DownloadCompleteEvent event = new DownloadCompleteEvent.from(arguments);
           _sc.add(event);
@@ -82,12 +81,9 @@ class Backdown {
       /// A download is progressing...
       case PROGRESS_EVENT:
         print("Heard handler call...PROGRESS_EVENT");
-        if (success && _sc.hasListener) {
+        if (_sc.hasListener) {
           DownloadProgressEvent event = new DownloadProgressEvent.from(arguments);
           _sc.add(event);
-        } else if (!success && _sc.hasListener) {
-          BackdownErrorEvent error = new BackdownErrorEvent.from(arguments);
-          _sc.add(error);
         }
         break;
       default:
