@@ -61,14 +61,15 @@ class Backdown {
   static Stream<BackdownEvent> get backdownEventStream => _sc.stream;
 
   Future<dynamic> handler(MethodCall call) async {
-    print("Heard handler call...");
     switch (call.method) {
       case COMPLETE_EVENT:
+        print("Heard handler call...COMPLETE_EVENT");
         DownloadCompleteEvent event = new DownloadCompleteEvent.from((call.arguments as Map).cast<String, dynamic>());
         _sc.add(event);
         break;
 
       case PROGRESS_EVENT:
+        print("Heard handler call...PROGRESS_EVENT");
         DownloadProgressEvent event = new DownloadProgressEvent.from((call.arguments as Map).cast<String, dynamic>());
         _sc.add(event);
         break;
@@ -103,9 +104,9 @@ class Backdown {
 
   /// debug.
   static void downloadFileWithURL() async {
-    //final String url = "https://traffic.megaphone.fm/GLT8678602522.mp3";
-    final String url =
-        "https://ia800500.us.archive.org/5/items/aesop_fables_volume_one_librivox/fables_01_00_aesop.mp3";
+    final String url = "https://traffic.megaphone.fm/GLT8678602522.mp3";
+    //final String url =
+    //    "https://ia800500.us.archive.org/5/items/aesop_fables_volume_one_librivox/fables_01_00_aesop.mp3";
     final String title = "Episode 101 - BBC World at One";
     final String description = "Downloading...";
 

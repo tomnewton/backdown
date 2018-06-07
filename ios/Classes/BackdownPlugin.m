@@ -19,7 +19,7 @@
 @implementation BackdownPlugin
 
 +(NSString*)sessionKey{
-    return @"backdownPluginKey";
+    return @"BACKDOWN_PLUGIN_SESSION_KEY";
 }
 
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar {
@@ -74,7 +74,7 @@
             return;
         }
         // send the request to the system.
-        [self enqueueDownload:request.url isDiscretionary:request.isDiscretionary doesSendLaunchEvents:YES];
+        [self enqueueDownload:request.url isDiscretionary:NO doesSendLaunchEvents:YES];
         result(@{KEY_SUCCESS: @YES});
         
         // remove the reference to the download.
