@@ -61,17 +61,33 @@ class Backdown {
   static Stream<BackdownEvent> get backdownEventStream => _sc.stream;
 
   Future<dynamic> handler(MethodCall call) async {
+    Map<String, dynamic> arguments = (call.arguments as Map).cast<String, dynamic>();
+    bool success = arguments[KEY_SUCCESS];
+
     switch (call.method) {
+
+      /// A download has completed.
       case COMPLETE_EVENT:
         print("Heard handler call...COMPLETE_EVENT");
-        DownloadCompleteEvent event = new DownloadCompleteEvent.from((call.arguments as Map).cast<String, dynamic>());
-        _sc.add(event);
+        if (success && _sc.hasListener) {
+          DownloadCompleteEvent event = new DownloadCompleteEvent.from(arguments);
+          _sc.add(event);
+        } else if (!success && _sc.hasListener) {
+          BackdownErrorEvent error = new BackdownErrorEvent.from(arguments);
+          _sc.add(error);
+        }
         break;
 
+      /// A download is progressing...
       case PROGRESS_EVENT:
         print("Heard handler call...PROGRESS_EVENT");
-        DownloadProgressEvent event = new DownloadProgressEvent.from((call.arguments as Map).cast<String, dynamic>());
-        _sc.add(event);
+        if (success && _sc.hasListener) {
+          DownloadProgressEvent event = new DownloadProgressEvent.from(arguments);
+          _sc.add(event);
+        } else if (!success && _sc.hasListener) {
+          BackdownErrorEvent error = new BackdownErrorEvent.from(arguments);
+          _sc.add(error);
+        }
         break;
       default:
         break;
@@ -183,31 +199,39 @@ class BackdownRequest {
 /// These events are sent to the BackdownPlugin's event Stream.
 /// Tells a listener about progress.
 class DownloadProgressEvent extends BackdownEvent {
-  int progress;
-  int expectedBytes;
+  final int progress;
+  final int expectedBytes;
   DownloadProgressEvent(String downloadId, this.progress, this.expectedBytes) : super(downloadId);
 
-  DownloadProgressEvent.from(Map<String, dynamic> data) : super(data[Backdown.KEY_DOWNLOAD_ID]) {
-    this.progress = data[Backdown.KEY_PROGRESS];
-    this.expectedBytes = data[Backdown.KEY_TOTAL];
-  }
+  DownloadProgressEvent.from(Map<String, dynamic> data)
+      : this.progress = data[Backdown.KEY_PROGRESS],
+        this.expectedBytes = data[Backdown.KEY_TOTAL],
+        super(data[Backdown.KEY_DOWNLOAD_ID]);
 }
 
 /// Broadcast when the Download is complete.
 class DownloadCompleteEvent extends BackdownEvent {
-  bool success;
-  String filePath;
+  final bool success;
+  final String filePath;
+
   DownloadCompleteEvent(String downloadId, this.success, this.filePath) : super(downloadId);
 
-  DownloadCompleteEvent.from(Map<String, dynamic> data) : super(data[Backdown.KEY_DOWNLOAD_ID]) {
-    this.success = data[Backdown.KEY_SUCCESS];
-    this.filePath = data[Backdown.KEY_FILE_PATH];
-  }
+  DownloadCompleteEvent.from(Map<String, dynamic> data)
+      : this.success = data[Backdown.KEY_SUCCESS],
+        this.filePath = data[Backdown.KEY_FILE_PATH],
+        super(data[Backdown.KEY_DOWNLOAD_ID]);
+}
+
+/// Errors
+class BackdownErrorEvent extends BackdownEvent {
+  final String message;
+  BackdownErrorEvent.from(Map<String, dynamic> data)
+      : this.message = data[Backdown.KEY_ERROR_MSG],
+        super(data[Backdown.KEY_DOWNLOAD_ID]);
 }
 
 abstract class BackdownEvent {
   String downloadId;
-
   BackdownEvent(this.downloadId);
 }
 
