@@ -1,6 +1,6 @@
 name: backdown
-description: A new flutter plugin project.
-version: 0.0.1
+description: Native background downloads for Flutter.
+version: 0.0.2
 author:
 homepage:
 
