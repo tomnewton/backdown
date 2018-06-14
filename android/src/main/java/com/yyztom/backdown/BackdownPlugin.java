@@ -56,6 +56,7 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
   private int mNotificationColor = 0xFF000000;
 
   // Valid methods on the channel.
+  private static final String METHOD_READY = "ready";
   private static final String METHOD_CREATE_DOWNLOAD = "createDownload";
   private static final String METHOD_ENQUEUE_DOWNLOAD = "enqueueDownload";
   private static final String METHOD_SET_DEFAULTS = "setDefaults";
@@ -106,14 +107,8 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
 
     createNotificationChannel();
 
-    IntentFilter filter = new IntentFilter(
-      DownloadManager.ACTION_DOWNLOAD_COMPLETE
-    );
-
     // so we don't leak the receiver that we add below
     registrar.addViewDestroyListener(this);
-    // add the receiver.
-    ctx.registerReceiver(this, filter);
 
     if ( countActiveDownloads() > 0 ) {
       startProgressChecking();
@@ -136,6 +131,13 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
       case METHOD_SET_DEFAULTS:
         long color = call.argument("color");
         mNotificationColor = (int)color;
+        break;
+      case METHOD_READY:
+        IntentFilter filter = new IntentFilter(
+                DownloadManager.ACTION_DOWNLOAD_COMPLETE
+        );
+        // add the receiver.
+        getActiveContext().registerReceiver(this, filter);
         break;
       default:
         result.notImplemented();

@@ -16,6 +16,9 @@
 #define KEY_PROGRESS @"PROGRESS"
 #define KEY_TOTAL @"TOTAL"
 
+#define URL_SESSION_KEY_INTERACTIVE @"BACKDOWN_INTERACTIVE"
+#define URL_SESSION_KEY_DISCRETIONARY @"BACKDOWN_DISCRETIONARY"
+
 @implementation BackdownPlugin
 
 +(NSString*)sessionKey{
@@ -35,16 +38,43 @@
         self.methodChannel = chan;
         self.requests = [NSMutableDictionary dictionary];
         [registrar addApplicationDelegate:self];
+        
         return self;
     }
     return nil;
 }
 
--(NSURLSession*)getURLSessionDiscretionary:(bool)isDiscretionary doesSendLaunchEvents:(bool)sendsLaunchEvents {
-    NSURLSessionConfiguration* config = [NSURLSessionConfiguration backgroundSessionConfigurationWithIdentifier:[BackdownPlugin sessionKey]];
-    [config setDiscretionary:isDiscretionary];
-    [config setSessionSendsLaunchEvents:sendsLaunchEvents];
-    return [NSURLSession sessionWithConfiguration:config delegate:(id<NSURLSessionDelegate>)self delegateQueue:nil];
+-(void)initURLSessions{
+    if ( self.interactiveSession == nil && self.discretionarySession == nil ) {
+        // create our two NSURLSessions
+        // first the interactive Session.
+        NSString* bundleId = [[NSBundle mainBundle] bundleIdentifier];
+        NSString* interactiveId = [NSString stringWithFormat:@"%@-%@", bundleId, @"interactive"];
+        
+        NSURLSessionConfiguration* interactiveConfing = [NSURLSessionConfiguration backgroundSessionConfigurationWithIdentifier:interactiveId];
+        [interactiveConfing setDiscretionary:NO];
+        [interactiveConfing setSessionSendsLaunchEvents:NO];
+        
+        self.interactiveSession = [NSURLSession sessionWithConfiguration:interactiveConfing delegate:(id<NSURLSessionDelegate>)self delegateQueue:nil];
+        
+        // now the discretionary NSURLSession
+        NSString* discretionaryId = [NSString stringWithFormat:@"%@-%@", bundleId, @"discretionary"];
+        
+        NSURLSessionConfiguration* discretinaryConfig = [NSURLSessionConfiguration backgroundSessionConfigurationWithIdentifier:discretionaryId];
+        [discretinaryConfig setDiscretionary:YES];
+        [discretinaryConfig setSessionSendsLaunchEvents:YES];
+        
+        self.discretionarySession = [NSURLSession sessionWithConfiguration:discretinaryConfig delegate:(id<NSURLSessionDelegate>)self delegateQueue:nil];
+        
+    }
+}
+
+-(NSURLSession*)getURLSessionDiscretionary:(bool)isDiscretionary{
+    
+    if ( isDiscretionary == YES ) {
+        return self.discretionarySession;
+    }
+    return self.interactiveSession;
 }
 
 - (void)handleMethodCall:(FlutterMethodCall*)call result:(FlutterResult)result {
@@ -82,13 +112,17 @@
     } else if ([@"cancelDownload" isEqualToString:call.method]) {
         NSString* downloadId = call.arguments[KEY_DOWNLOAD_ID];
         [self cancelDownload:downloadId andFlutterResult:result];
+    } else if ([@"ready" isEqualToString:call.method] ) {
+        // all the flutter client to tell us when you create the URLSessions
+        // to ensure they're ready for events.
+        [self initURLSessions];
     } else {
         result(FlutterMethodNotImplemented);
     }
 }
 
 -(void)cancelDownload:(NSString*)downloadId andFlutterResult:(FlutterResult)result {
-    NSURLSession* session = [self getURLSessionDiscretionary:NO doesSendLaunchEvents:NO];
+    NSURLSession* session = [self getURLSessionDiscretionary:NO];
     
     [session getTasksWithCompletionHandler:^(NSArray<NSURLSessionDataTask *> * _Nonnull dataTasks, NSArray<NSURLSessionUploadTask *> * _Nonnull uploadTasks, NSArray<NSURLSessionDownloadTask *> * _Nonnull downloadTasks) {
         for (NSURLSessionTask* task in downloadTasks) {
@@ -107,7 +141,7 @@
   doesSendLaunchEvents:(bool)doesSendLaunchEvents {
     NSLog(@"Enqueueing %@", urlStr);
     
-    NSURLSession* session = [self getURLSessionDiscretionary:isDiscretionary doesSendLaunchEvents:doesSendLaunchEvents];
+    NSURLSession* session = [self getURLSessionDiscretionary:isDiscretionary];
     NSURL* url = [NSURL URLWithString:urlStr];
     
     NSURLSessionDownloadTask* task = [session downloadTaskWithURL:url];
@@ -169,10 +203,12 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
     NSLog(@"Complete");
     /// we have to move the file from the temp location before
     /// returning from this method
+    NSString* downloadId = [self MD5String:downloadTask.originalRequest.URL.absoluteString];
+    
     NSInteger status = [(NSHTTPURLResponse*)downloadTask.response statusCode];
     if (status < 200 || 299 < status ){
         NSString* errMsg = [NSString stringWithFormat:@"HTTP Status was: %ld", (long)status];
-        [self.methodChannel invokeMethod:COMPLETE_EVENT arguments:@{ KEY_SUCCESS: @NO, KEY_ERROR_MESSAGE:errMsg}];
+        [self sendFlutterEvent:COMPLETE_EVENT withErrorMessage:errMsg forDownloadId:downloadId];
         return;
     }
     
@@ -192,7 +228,7 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
     [fm createDirectoryAtURL:to withIntermediateDirectories:YES attributes:nil error:&error];
     if ( error != nil ) {
         NSString* errMsg = [error description];
-        [self.methodChannel invokeMethod:COMPLETE_EVENT arguments:@{ KEY_SUCCESS: @NO, KEY_ERROR_MESSAGE:errMsg}];
+        [self sendFlutterEvent:COMPLETE_EVENT withErrorMessage:errMsg forDownloadId:downloadId];
         return;
     }
     
@@ -205,11 +241,11 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
         NSError* removeErr;
         [fm removeItemAtURL:to error:&removeErr];
         if ( removeErr != nil ) {
-            return [self sendFlutterEvent:COMPLETE_EVENT withErrorMessage:[removeErr debugDescription]];
+            return [self sendFlutterEvent:COMPLETE_EVENT withErrorMessage:[removeErr debugDescription] forDownloadId:downloadId];
         }
     }
     
-    BOOL moved = [fm moveItemAtURL:location toURL:to error:&error]; // [fm moveItemAtPath:[location absoluteString] toPath:[to absoluteString] error:&error]; //
+    BOOL moved = [fm moveItemAtURL:location toURL:to error:&error]; 
     
     if ( error != nil || moved == NO){
         // big problem.
@@ -217,10 +253,9 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
         if ( error != nil ){
             errMsg = [error description];
         }
-        return [self sendFlutterEvent:COMPLETE_EVENT withErrorMessage:errMsg];
+        return [self sendFlutterEvent:COMPLETE_EVENT withErrorMessage:errMsg forDownloadId:downloadId];
     }
     
-    NSString* downloadId = [self MD5String:downloadTask.originalRequest.URL.absoluteString];
     
     NSDictionary *args = @{
                            KEY_SUCCESS: @YES,
@@ -299,8 +334,10 @@ handleEventsForBackgroundURLSession:(nonnull NSString*)identifier
             ];
 }
 
-- (void)sendFlutterEvent:(NSString*)event withErrorMessage:(NSString*)errorMessage {
-    [self.methodChannel invokeMethod:event arguments:@{ KEY_SUCCESS: @NO, KEY_ERROR_MESSAGE:errorMessage}];
+
+
+- (void)sendFlutterEvent:(NSString*)event withErrorMessage:(NSString*)errorMessage forDownloadId:(NSString*)downloadId {
+    [self.methodChannel invokeMethod:event arguments:@{ KEY_SUCCESS: @NO, KEY_ERROR_MESSAGE:errorMessage, KEY_DOWNLOAD_ID: downloadId}];
 }
 
 

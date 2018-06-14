@@ -7,9 +7,10 @@ class Backdown {
   static Backdown _singleton;
   static const MethodChannel _channel = const MethodChannel("backdown");
 
-  static final StreamController<BackdownEvent> _sc = new StreamController<BackdownEvent>();
+  static final StreamController<BackdownEvent> _sc = new StreamController<BackdownEvent>(onListen: Backdown._startSession);
 
   // Methods supported.
+  static const String METHOD_READY = "ready";
   static const String METHOD_CREATE_DOWNLOAD = "createDownload";
   static const String METHOD_ENQUEUE_DOWNLOAD = "enqueueDownload";
   static const String METHOD_SET_DEFAULTS = "setDefaults";
@@ -89,6 +90,11 @@ class Backdown {
       default:
         break;
     }
+  }
+
+  static Future<void> _startSession() async {
+    print("Backdown creating session.");
+    await _channel.invokeMethod(METHOD_READY);
   }
 
   /// Create a download and get an id for it.
