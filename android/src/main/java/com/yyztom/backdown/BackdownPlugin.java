@@ -66,6 +66,7 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
   // event name keys
   private static final String COMPLETE_EVENT = "COMPLETE_EVENT";
   private static final String PROGRESS_EVENT = "PROGRESS_EVENT";
+  private static final String READY_EVENT = "READY_EVENT";
 
   // args keys
   private static final String DOWNLOAD_URL = "DOWNLOAD_URL";
@@ -133,15 +134,22 @@ public class BackdownPlugin extends BroadcastReceiver implements MethodCallHandl
         mNotificationColor = (int)color;
         break;
       case METHOD_READY:
-        IntentFilter filter = new IntentFilter(
-                DownloadManager.ACTION_DOWNLOAD_COMPLETE
-        );
-        // add the receiver.
-        getActiveContext().registerReceiver(this, filter);
+        initialise();
         break;
       default:
         result.notImplemented();
     }
+  }
+
+  private void initialise() {
+    IntentFilter filter = new IntentFilter(
+            DownloadManager.ACTION_DOWNLOAD_COMPLETE
+    );
+    // add the receiver.
+    getActiveContext().registerReceiver(this, filter);
+
+    // tell dart code we're ready to enqueue downloads and broadcast events...
+    this.mChannel.invokeMethod(READY_EVENT, null);
   }
 
   private void createDownload(MethodCall call, Result result ) {

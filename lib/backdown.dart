@@ -7,7 +7,8 @@ class Backdown {
   static Backdown _singleton;
   static const MethodChannel _channel = const MethodChannel("backdown");
 
-  static final StreamController<BackdownEvent> _sc = new StreamController<BackdownEvent>(onListen: Backdown._startSession);
+  static final StreamController<BackdownEvent> _sc =
+      new StreamController<BackdownEvent>(onListen: Backdown._startSession);
 
   // Methods supported.
   static const String METHOD_READY = "ready";
@@ -19,6 +20,7 @@ class Backdown {
   // Event Keys
   static const String COMPLETE_EVENT = "COMPLETE_EVENT";
   static const String PROGRESS_EVENT = "PROGRESS_EVENT";
+  static const String READY_EVENT = "READY_EVENT";
 
   // Keys
   static const String KEY_DOWNLOAD_URL = "DOWNLOAD_URL";
@@ -63,12 +65,16 @@ class Backdown {
   static Stream<BackdownEvent> get backdownEventStream => _sc.stream;
 
   Future<dynamic> handler(MethodCall call) async {
-    Map<String, dynamic> arguments = (call.arguments as Map).cast<String, dynamic>();
+    Map<String, dynamic> arguments;
+    if (call.arguments != null) {
+      arguments = (call.arguments as Map).cast<String, dynamic>();
+    }
+
     switch (call.method) {
 
       /// A download has completed.
       case COMPLETE_EVENT:
-        print("Heard handler call...COMPLETE_EVENT");
+        print("backdown: COMPLETE_EVENT");
         bool success = arguments[KEY_SUCCESS];
         if (success && _sc.hasListener) {
           DownloadCompleteEvent event = new DownloadCompleteEvent.from(arguments);
@@ -81,11 +87,16 @@ class Backdown {
 
       /// A download is progressing...
       case PROGRESS_EVENT:
-        print("Heard handler call...PROGRESS_EVENT");
+        print("backdown: PROGRESS_EVENT");
         if (_sc.hasListener) {
           DownloadProgressEvent event = new DownloadProgressEvent.from(arguments);
           _sc.add(event);
         }
+        break;
+
+      case READY_EVENT:
+        print("backdown: READY_EVENT");
+        _sc.add(new BackdownReadyEvent());
         break;
       default:
         break;
@@ -209,7 +220,7 @@ class BackdownRequest {
 
 /// These events are sent to the BackdownPlugin's event Stream.
 /// Tells a listener about progress.
-class DownloadProgressEvent extends BackdownEvent {
+class DownloadProgressEvent extends BackdownDownloadInfoEvent {
   final int progress;
   final int expectedBytes;
   DownloadProgressEvent(String downloadId, this.progress, this.expectedBytes) : super(downloadId);
@@ -221,7 +232,7 @@ class DownloadProgressEvent extends BackdownEvent {
 }
 
 /// Broadcast when the Download is complete.
-class DownloadCompleteEvent extends BackdownEvent {
+class DownloadCompleteEvent extends BackdownDownloadInfoEvent {
   final bool success;
   final String filePath;
 
@@ -234,16 +245,25 @@ class DownloadCompleteEvent extends BackdownEvent {
 }
 
 /// Errors
-class BackdownErrorEvent extends BackdownEvent {
+class BackdownErrorEvent extends BackdownDownloadInfoEvent {
   final String message;
   BackdownErrorEvent.from(Map<String, dynamic> data)
       : this.message = data[Backdown.KEY_ERROR_MSG],
         super(data[Backdown.KEY_DOWNLOAD_ID]);
 }
 
-abstract class BackdownEvent {
+/// When backdown is fully initialised
+class BackdownReadyEvent extends BackdownEvent {
+  BackdownReadyEvent();
+}
+
+abstract class BackdownDownloadInfoEvent extends BackdownEvent {
   String downloadId;
-  BackdownEvent(this.downloadId);
+  BackdownDownloadInfoEvent(this.downloadId);
+}
+
+abstract class BackdownEvent {
+  BackdownEvent();
 }
 
 /*

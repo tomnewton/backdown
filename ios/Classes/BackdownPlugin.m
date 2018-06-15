@@ -16,6 +16,8 @@
 #define KEY_PROGRESS @"PROGRESS"
 #define KEY_TOTAL @"TOTAL"
 
+#define READY_EVENT @"READY_EVENT"
+
 #define URL_SESSION_KEY_INTERACTIVE @"BACKDOWN_INTERACTIVE"
 #define URL_SESSION_KEY_DISCRETIONARY @"BACKDOWN_DISCRETIONARY"
 
@@ -66,11 +68,13 @@
         
         self.discretionarySession = [NSURLSession sessionWithConfiguration:discretinaryConfig delegate:(id<NSURLSessionDelegate>)self delegateQueue:nil];
         
+        // Tell our dart code that we're initialised and ready to
+        // enqueue downloads, and broadcast events.
+        [self.methodChannel invokeMethod:READY_EVENT arguments:nil];
     }
 }
 
 -(NSURLSession*)getURLSessionDiscretionary:(bool)isDiscretionary{
-    
     if ( isDiscretionary == YES ) {
         return self.discretionarySession;
     }
@@ -270,6 +274,9 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
     if ( error != nil ){
         NSLog(@"ERROR: %@", error.debugDescription);
         NSLog(@"Localized: %@", error.localizedDescription);
+        
+        NSString *downloadId = [self MD5String:task.originalRequest.URL.absoluteString];
+        [self sendFlutterEvent:COMPLETE_EVENT withErrorMessage:error.localizedDescription forDownloadId:downloadId];
     }
 }
 
