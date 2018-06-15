@@ -157,6 +157,11 @@ class BackdownRequest {
   final bool androidRequiresDeviceIdle;
   final bool showNotification;
 
+  /// wifiOnly sets iOS to discretionary, and android forces wait for wifi... on Android, if you're on wifi already
+  /// then really this is interactive...
+  /// TODO: test this a bit on android.. make sure this condition is ok.
+  bool get isInteractiveDownload => !this.wifiOnly;
+
   /// iOS and Android will download this file asap.
   BackdownRequest.asap(this.url, this.title, {this.description: "", this.showNotification: true})
       : this.wifiOnly = false,
