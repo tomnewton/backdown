@@ -46,12 +46,22 @@
     return nil;
 }
 
+-(NSString*)getNSURLSessionIdentifier:(BOOL)discretionary {
+    NSString* bundleId = [[NSBundle mainBundle] bundleIdentifier];
+    
+    if ( discretionary ){
+         return [NSString stringWithFormat:@"%@-%@", bundleId, @"discretionary"];
+    }
+    
+    return [NSString stringWithFormat:@"%@-%@", bundleId, @"interactive"];
+}
+
 -(void)initURLSessions{
     if ( self.interactiveSession == nil && self.discretionarySession == nil ) {
         // create our two NSURLSessions
         // first the interactive Session.
-        NSString* bundleId = [[NSBundle mainBundle] bundleIdentifier];
-        NSString* interactiveId = [NSString stringWithFormat:@"%@-%@", bundleId, @"interactive"];
+        
+        NSString* interactiveId = [self getNSURLSessionIdentifier:NO];
         
         NSURLSessionConfiguration* interactiveConfing = [NSURLSessionConfiguration backgroundSessionConfigurationWithIdentifier:interactiveId];
         [interactiveConfing setDiscretionary:NO];
@@ -60,7 +70,7 @@
         self.interactiveSession = [NSURLSession sessionWithConfiguration:interactiveConfing delegate:(id<NSURLSessionDelegate>)self delegateQueue:nil];
         
         // now the discretionary NSURLSession
-        NSString* discretionaryId = [NSString stringWithFormat:@"%@-%@", bundleId, @"discretionary"];
+        NSString* discretionaryId = [self getNSURLSessionIdentifier:YES];
         
         NSURLSessionConfiguration* discretinaryConfig = [NSURLSessionConfiguration backgroundSessionConfigurationWithIdentifier:discretionaryId];
         [discretinaryConfig setDiscretionary:YES];
@@ -191,10 +201,18 @@
 
 -(void)URLSessionDidFinishEventsForBackgroundURLSession:(NSURLSession*)session {
     // If we stored a backgroundCompletionHandler - call it.
-    if ( self.backgroundCompletionHandler != nil ) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            self.backgroundCompletionHandler();
-        });
+    if ( [session.configuration.identifier isEqualToString:[self getNSURLSessionIdentifier:NO]] ) {
+        if ( self.backgroundCompletionHandlerForInteractive != nil ) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                self.backgroundCompletionHandlerForInteractive();
+            });
+        }
+    } else {
+        if ( self.backgroundCompletionHandlerForDiscretionary != nil ) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                self.backgroundCompletionHandlerForDiscretionary();
+            });
+        }
     }
 }
 
@@ -306,8 +324,25 @@ totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
 #pragma mark - AppDelegate methods
 - (BOOL)application:(UIApplication*)application
 handleEventsForBackgroundURLSession:(nonnull NSString*)identifier
-  completionHandler:(nonnull void (^)())completionHandler {
-    self.backgroundCompletionHandler = completionHandler;
+  completionHandler:(nonnull void (^)(void))completionHandler {
+    
+    NSString* discretionary = [self getNSURLSessionIdentifier:YES];
+    NSString* interactive = [self getNSURLSessionIdentifier:NO];
+  
+    if ( [discretionary isEqualToString:identifier] ) {
+      
+      self.backgroundCompletionHandlerForDiscretionary = completionHandler;
+
+    } else if ([interactive isEqualToString:identifier]) {
+      
+      self.backgroundCompletionHandlerForInteractive = completionHandler;
+
+    } else {
+      
+      NSException *exception = [NSException exceptionWithName:@"Unknown idenfier" reason:@"Unknown identifier" userInfo:@{@"Localized key": [NSString stringWithFormat:@"Unknown identifier: %@", identifier]}];
+      [exception raise];
+    }
+    
     return YES;
 }
 
