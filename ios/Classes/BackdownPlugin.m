@@ -303,7 +303,7 @@ didFinishDownloadingToURL:(nonnull NSURL *)location {
       didWriteData:(int64_t)bytesWritten
  totalBytesWritten:(int64_t)totalBytesWritten
 totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
-    NSLog(@"Progress for file");
+    //NSLog(@"Progress for file");
     /// progress
     NSString* downloadId = [self MD5String:downloadTask.originalRequest.URL.absoluteString];
     

@@ -74,7 +74,7 @@ class Backdown {
 
       /// A download has completed.
       case COMPLETE_EVENT:
-        print("backdown: COMPLETE_EVENT");
+        //print("backdown: COMPLETE_EVENT");
         bool success = arguments[KEY_SUCCESS];
         if (success && _sc.hasListener) {
           DownloadCompleteEvent event = new DownloadCompleteEvent.from(arguments);
@@ -87,7 +87,7 @@ class Backdown {
 
       /// A download is progressing...
       case PROGRESS_EVENT:
-        print("backdown: PROGRESS_EVENT");
+        //print("backdown: PROGRESS_EVENT");
         if (_sc.hasListener) {
           DownloadProgressEvent event = new DownloadProgressEvent.from(arguments);
           _sc.add(event);
@@ -95,7 +95,7 @@ class Backdown {
         break;
 
       case READY_EVENT:
-        print("backdown: READY_EVENT");
+        //print("backdown: READY_EVENT");
         _sc.add(new BackdownReadyEvent());
         break;
       default:
